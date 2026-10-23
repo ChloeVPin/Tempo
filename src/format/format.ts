@@ -1,5 +1,5 @@
 import type { Instant } from '../core/instant.js';
-import type { LocalDate } from '../core/local-date.js';
+import { LocalDate } from '../core/local-date.js';
 import type { LocalDateTime } from '../core/local-datetime.js';
 import { daysFromCivil, isoDayOfWeek } from '../core/civil.js';
 import type { LocalTime } from '../core/local-time.js';
@@ -8,8 +8,13 @@ import type { FormatOptions } from '../types.js';
 import { formatOffset } from '../tz/offset.js';
 import type { ZonedDateTime } from '../tz/zoned-datetime.js';
 import { tokenize, type FormatToken } from './tokens.js';
+import { createLocalDateParser } from './parse.js';
 
 export type Formattable = LocalDate | LocalTime | LocalDateTime | Instant | ZonedDateTime;
+
+LocalDate.registerLocalDateParser((input: string, pattern: string) =>
+  createLocalDateParser()(input, pattern),
+);
 
 const compilerCache = new Map<string, FormatToken[]>();
 const dayPeriodCache = new Map<string, Intl.DateTimeFormat>();

@@ -23,10 +23,20 @@ import {
   requireValidDate,
 } from './civil.js';
 import { Duration } from './duration.js';
-import { parseDateFields } from '../format/parse.js';
 import { resolveDate } from './overflow.js';
 
+type LocalDatePatternParser = (input: string, pattern: string) => ParseResult<{
+  readonly year: number;
+  readonly month: number;
+  readonly day: number;
+}>;
+
 export class LocalDate {
+  static customPatternParser: LocalDatePatternParser | null = null;
+
+  static registerLocalDateParser(parser: LocalDatePatternParser): void {
+    LocalDate.customPatternParser = parser;
+  }
   readonly year: number;
   readonly month: number;
   readonly day: number;
@@ -66,18 +76,28 @@ export class LocalDate {
 
   static tryParse(input: string, pattern?: string): ParseResult<LocalDate> {
     if (pattern === undefined) return parseLocalDate(input);
-    const parsed = parseDateFields(input, pattern);
-    if (!parsed.ok) return parsed;
-    try {
-      return {
-        ok: true,
-        value: LocalDate.of(parsed.value.year, parsed.value.month, parsed.value.day, 'reject'),
-      };
-    } catch (err) {
-      const message = err instanceof TempoError ? err.message : 'Invalid date';
-      const reason = err instanceof TempoError ? err.code : 'INVALID_DATE';
-      return { ok: false, reason, message, input };
+    if (LocalDate.customPatternParser !== null) {
+      const parsed = LocalDate.customPatternParser(input, pattern);
+      if (parsed.ok) {
+        try {
+          return {
+            ok: true,
+            value: LocalDate.of(parsed.value.year, parsed.value.month, parsed.value.day, 'reject'),
+          };
+        } catch (err) {
+          const message = err instanceof TempoError ? err.message : 'Invalid date';
+          const reason = err instanceof TempoError ? err.code : 'INVALID_DATE';
+          return { ok: false, reason, message, input };
+        }
+      }
+      return parsed;
     }
+    return {
+      ok: false,
+      reason: 'INVALID_PARSE',
+      message: 'Expected ISO date YYYY-MM-DD or registered custom pattern',
+      input,
+    };
   }
 
   static today(timeZone?: string): LocalDate {

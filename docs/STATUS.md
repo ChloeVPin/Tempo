@@ -34,7 +34,7 @@ Legend: **done** = implemented + at least one test · **partial** = exists, thin
 | `src/iso/scan.ts` | missing | — | Aspirational |
 | `src/format/tokens.ts` | done | `format.test.ts` | |
 | `src/format/format.ts` | done | `format.test.ts` | In-module token cache; weekday via civil math (no `Date.UTC` 0–99 drift); localized day-period token |
-| `src/format/parse.ts` | done | `custom-parse.test.ts` | Strict numeric LocalDate token parser; locale parsing deferred |
+| `src/format/parse.ts` | done | `custom-parse.test.ts` | Custom LocalDate parser is now lazy/registered so core barrel avoids compiler imports |
 | `src/format/compiler.ts` | n/a | — | Not a separate file |
 | `src/intl/*` | done | `intl.test.ts` | Civil years route through `utcMillis`, not `Date.UTC` |
 | `src/relative/relative-time.ts` | partial | `relative.test.ts` | One case |

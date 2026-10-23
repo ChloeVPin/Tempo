@@ -7,6 +7,10 @@ export interface ParsedDateFields {
   readonly day: number;
 }
 
+export function createLocalDateParser(): (input: string, pattern: string) => ParseResult<ParsedDateFields> {
+  return (input: string, pattern: string): ParseResult<ParsedDateFields> => parseDateFields(input, pattern);
+}
+
 /** Parse the numeric LocalDate subset of the formatter token language. */
 export function parseDateFields(input: string, pattern: string): ParseResult<ParsedDateFields> {
   if (typeof input !== 'string' || typeof pattern !== 'string') {
