@@ -1,16 +1,29 @@
 import { TempoError } from '../errors.js';
-import type { LocalDate } from './local-date.js';
+import { Duration } from './duration.js';
+import { Instant } from './instant.js';
+import { LocalDate } from './local-date.js';
+import type { DateUnit, DurationLike } from '../types.js';
 
 export interface IntervalEndpoint<T> {
   compare(other: T): number;
 }
 
-/** An immutable half-open interval [start, end). Equal endpoints form an empty interval. */
 export class Interval<T extends IntervalEndpoint<T>> {
-  private constructor(
-    readonly start: T,
-    readonly end: T,
-  ) {}
+  readonly #start: T;
+  readonly #end: T;
+
+  private constructor(start: T, end: T) {
+    this.#start = start;
+    this.#end = end;
+  }
+
+  get start(): T {
+    return this.#start;
+  }
+
+  get end(): T {
+    return this.#end;
+  }
 
   static of<T extends IntervalEndpoint<T>>(start: T, end: T): Interval<T> {
     if (compareEndpoints(start, end) > 0) {
@@ -22,43 +35,87 @@ export class Interval<T extends IntervalEndpoint<T>> {
   }
 
   isEmpty(): boolean {
-    return compareEndpoints(this.start, this.end) === 0;
+    return compareEndpoints(this.#start, this.#end) === 0;
   }
 
   contains(value: T): boolean {
-    return compareEndpoints(this.start, value) <= 0 && compareEndpoints(value, this.end) < 0;
+    return compareEndpoints(this.#start, value) <= 0 && compareEndpoints(value, this.#end) < 0;
   }
 
   overlaps(other: Interval<T>): boolean {
     return (
-      compareEndpoints(this.start, other.end) < 0 && compareEndpoints(other.start, this.end) < 0
+      compareEndpoints(this.#start, other.end) < 0 && compareEndpoints(other.start, this.#end) < 0
     );
   }
 
   abuts(other: Interval<T>): boolean {
     return (
-      compareEndpoints(this.end, other.start) === 0 || compareEndpoints(other.end, this.start) === 0
+      compareEndpoints(this.#end, other.start) === 0 || compareEndpoints(other.end, this.#start) === 0
     );
   }
 
   intersection(other: Interval<T>): Interval<T> | null {
     if (!this.overlaps(other)) return null;
-    const start = compareEndpoints(this.start, other.start) >= 0 ? this.start : other.start;
-    const end = compareEndpoints(this.end, other.end) <= 0 ? this.end : other.end;
+    const start = compareEndpoints(this.#start, other.start) >= 0 ? this.#start : other.start;
+    const end = compareEndpoints(this.#end, other.end) <= 0 ? this.#end : other.end;
     return Interval.of(start, end);
   }
 
   union(other: Interval<T>): Interval<T> | null {
     if (!this.overlaps(other) && !this.abuts(other)) return null;
-    const start = compareEndpoints(this.start, other.start) <= 0 ? this.start : other.start;
-    const end = compareEndpoints(this.end, other.end) >= 0 ? this.end : other.end;
+    const start = compareEndpoints(this.#start, other.start) <= 0 ? this.#start : other.start;
+    const end = compareEndpoints(this.#end, other.end) >= 0 ? this.#end : other.end;
     return Interval.of(start, end);
   }
 
   equals(other: Interval<T>): boolean {
     return (
-      compareEndpoints(this.start, other.start) === 0 && compareEndpoints(this.end, other.end) === 0
+      compareEndpoints(this.#start, other.start) === 0 && compareEndpoints(this.#end, other.end) === 0
     );
+  }
+
+  *by(unit: DateUnit): IterableIterator<T> {
+    let current = this.#start;
+    yield current;
+    while (compareEndpoints(current, this.#end) < 0) {
+      current = advanceByUnit(current, unit);
+      if (compareEndpoints(current, this.#end) < 0) yield current;
+    }
+  }
+
+  *iterate(step: Duration | DurationLike): IterableIterator<T> {
+    const duration = Duration.from(step);
+    if (duration.isZero() || duration.sign < 0) {
+      throw new TempoError('INVALID_INTERVAL', 'Interval iteration step must be non-zero', {
+        input: step,
+      });
+    }
+    let current = this.#start;
+    yield current;
+    while (compareEndpoints(current, this.#end) < 0) {
+      current = currentPlus(current, duration);
+      if (compareEndpoints(current, this.#end) < 0) yield current;
+    }
+  }
+
+  split(step: Duration | DurationLike): Interval<T>[] {
+    if (this.isEmpty()) return [];
+    const normalized = Duration.from(step);
+    if (normalized.isZero() || normalized.sign < 0) {
+      throw new TempoError('INVALID_INTERVAL', 'Interval split step must be non-zero', {
+        input: step,
+      });
+    }
+    const result: Interval<T>[] = [];
+    let current = this.#start;
+    while (compareEndpoints(current, this.#end) < 0) {
+      const next = currentPlus(current, normalized);
+      const end = compareEndpoints(next, this.#end) >= 0 ? this.#end : next;
+      result.push(Interval.of(current, end));
+      if (compareEndpoints(end, this.#end) === 0) break;
+      current = end;
+    }
+    return result;
   }
 }
 
@@ -78,4 +135,68 @@ function compareEndpoints<T extends IntervalEndpoint<T>>(a: T, b: T): number {
     });
   }
   return result < 0 ? -1 : result > 0 ? 1 : 0;
+}
+
+function currentPlus<T extends IntervalEndpoint<T>>(current: T, step: Duration): T {
+  if (current instanceof LocalDate) {
+    return current.plus(step) as unknown as T;
+  }
+  if (current instanceof Date) {
+    return new Date(current.getTime() + step.total('millisecond')) as unknown as T;
+  }
+  if (typeof (current as unknown as { plus(amount: Duration | DurationLike): unknown }).plus === 'function') {
+    return (current as unknown as { plus(amount: Duration | DurationLike): T }).plus(step);
+  }
+  throw new TempoError('INCOMPATIBLE_UNIT', 'Interval iteration requires an advanceable endpoint', {
+    input: current,
+  });
+}
+
+function toEpochMillis<T extends IntervalEndpoint<T>>(value: T): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof (value as unknown as { toEpochMilliseconds(): unknown }).toEpochMilliseconds === 'function') {
+    return (value as unknown as { toEpochMilliseconds(): number }).toEpochMilliseconds();
+  }
+  throw new TempoError('INVALID_INTERVAL', 'Interval split requires epoch-millisecond endpoints', {
+    input: value,
+  });
+}
+
+function replaceEnd<T extends IntervalEndpoint<T>>(endpoint: T, epochMillis: number): T {
+  if (endpoint instanceof Date) {
+    return new Date(epochMillis) as unknown as T;
+  }
+  if (endpoint instanceof LocalDate) {
+    return LocalDate.fromEpochDay(Math.trunc(epochMillis / 86_400_000)) as unknown as T;
+  }
+  if (typeof (endpoint as unknown as { plus(amount: Duration | DurationLike): unknown }).plus === 'function') {
+    return (endpoint as unknown as { plus(amount: Duration | DurationLike): T }).plus({ milliseconds: epochMillis - toEpochMillis(endpoint) });
+  }
+  throw new TempoError('INVALID_INTERVAL', 'Interval split requires replaceable endpoints', {
+    input: endpoint,
+  });
+}
+
+function advanceByUnit<T extends IntervalEndpoint<T>>(current: T, unit: DateUnit): T {
+  const step = Duration.of({ [unit]: 1 } as DurationLike);
+  if (current instanceof LocalDate) {
+    return current.plus(step) as unknown as T;
+  }
+  if (current instanceof Date) {
+    const milliseconds =
+      unit === 'year'
+        ? 366 * 86_400_000
+        : unit === 'month'
+          ? 31 * 86_400_000
+          : unit === 'week'
+            ? 7 * 86_400_000
+            : 86_400_000;
+    return new Date(current.getTime() + milliseconds) as unknown as T;
+  }
+  if (typeof (current as unknown as { plus(amount: Duration | DurationLike): unknown }).plus === 'function') {
+    return (current as unknown as { plus(amount: Duration | DurationLike): T }).plus(step);
+  }
+  throw new TempoError('INCOMPATIBLE_UNIT', 'Interval iteration requires an advanceable endpoint', {
+    input: current,
+  });
 }
