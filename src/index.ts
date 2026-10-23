@@ -5,6 +5,7 @@ export type {
   DateTimeUnit,
   Overflow,
   Disambiguation,
+  RoundingMode,
   DurationLike,
   ArithmeticOptions,
   ZoneOptions,

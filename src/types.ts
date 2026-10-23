@@ -4,6 +4,9 @@ export type DateTimeUnit = DateUnit | TimeUnit;
 
 export type Overflow = 'constrain' | 'reject';
 export type Disambiguation = 'compatible' | 'earlier' | 'later' | 'reject';
+export type RoundingMode = 'halfExpand' | 'ceil' | 'floor' | 'trunc';
+
+export const ROUNDING_MODES: readonly RoundingMode[] = ['halfExpand', 'ceil', 'floor', 'trunc'];
 
 export interface DateFields {
   readonly years?: number;

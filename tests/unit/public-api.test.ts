@@ -21,6 +21,7 @@ describe('public API exports', () => {
       'LocalDate',
       'LocalDateTime',
       'LocalTime',
+      'RoundingMode',
       'TempoError',
       'ZonedDateTime',
       'civilFromDays',

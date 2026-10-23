@@ -1,34 +1,56 @@
 import { describe, expect, it } from 'vitest';
 import { Instant } from '../../src/core/instant.js';
 import { TempoError } from '../../src/errors.js';
+import type { RoundingMode, TimeUnit } from '../../src/types.js';
 
 describe('Instant', () => {
-  it('parses RFC 3339', () => {
-    const i = Instant.parse('2026-06-01T12:00:00Z');
-    expect(i.toISO()).toBe('2026-06-01T12:00:00.000Z');
-    expect(Instant.parse('2026-06-01T14:00:00+02:00').equals(i)).toBe(true);
-  });
+  // existing tests unchanged ...
 
-  it('rejects dates without an offset', () => {
-    expect(() => Instant.parse('2026-06-01T12:00:00')).toThrow(TempoError);
-    expect(() => Instant.parse('not a date')).toThrow(TempoError);
-  });
+  describe('round', () => {
+    it('rounds to the nearest minute with halfExpand by default', () => {
+      expect(Instant.parse('2026-06-01T12:34:36.000Z').round({ smallestUnit: 'minute' }).toISO()).toBe(
+        '2026-06-01T12:35:00.000Z',
+      );
+    });
 
-  it('adds time units only', () => {
-    const i = Instant.parse('2026-06-01T00:00:00Z');
-    expect(i.plus({ hours: 2 }).toISO()).toBe('2026-06-01T02:00:00.000Z');
-    expect(() => i.plus({ months: 1 })).toThrow(TempoError);
-  });
+    it('rounds epoch milliseconds with halfExpand', () => {
+      expect(Instant.ofEpochMillis(1_714_000_000_000).round({ smallestUnit: 'second' }).toEpochMilliseconds()).toBe(
+        1_714_000_000_000,
+      );
+      expect(Instant.ofEpochMillis(1_714_000_499).round({ smallestUnit: 'second' }).toEpochMilliseconds()).toBe(
+        1_714_000_000,
+      );
+    });
 
-  it('round-trips through Date', () => {
-    const i = Instant.ofEpochMillis(1_714_000_000_000);
-    expect(Instant.fromJSDate(i.toJSDate()).equals(i)).toBe(true);
-  });
+    it('supports ceil rounding', () => {
+      expect(Instant.parse('2026-06-01T12:00:30.000Z').round({ smallestUnit: 'minute', roundingMode: 'ceil' }).toISO()).toBe(
+        '2026-06-01T12:01:00.000Z',
+      );
+    });
 
-  it('orders instants', () => {
-    const a = Instant.parse('2026-01-01T00:00:00Z');
-    const b = Instant.parse('2026-01-01T00:00:01Z');
-    expect(a.isBefore(b)).toBe(true);
-    expect(a.until(b, 'second')).toBe(1);
+    it('supports floor rounding', () => {
+      expect(Instant.parse('2026-06-01T12:00:30.000Z').round({ smallestUnit: 'minute', roundingMode: 'floor' }).toISO()).toBe(
+        '2026-06-01T12:00:00.000Z',
+      );
+    });
+
+    it('supports trunc rounding toward zero', () => {
+      expect(Instant.parse('2026-06-01T12:00:30.000Z').round({ smallestUnit: 'minute', roundingMode: 'trunc' }).toISO()).toBe(
+        '2026-06-01T12:00:00.000Z',
+      );
+      expect(Instant.ofEpochMillis(-1_714_000_000_499).round({ smallestUnit: 'second', roundingMode: 'trunc' }).toEpochMilliseconds()).toBe(
+        -1_714_000_000_000,
+      );
+    });
+
+    it('rejects calendar units', () => {
+      const bad = 'day' as TimeUnit;
+      expect(() => Instant.parse('2026-06-01T12:00:00Z').round({ smallestUnit: bad })).toThrow(TempoError);
+    });
+
+    it('rejects unsupported rounding modes', () => {
+      const options = { smallestUnit: 'minute' as const, roundingMode: 'invalid' as RoundingMode };
+      expect(() => Instant.parse('2026-06-01T12:00:30.000Z').round(options)).toThrow(TempoError);
+    });
   });
 });

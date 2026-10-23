@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LocalTime } from '../../src/core/local-time.js';
 import { TempoError } from '../../src/errors.js';
 import { useFixedClock } from '../../src/clock.js';
+import type { RoundingMode, TimeUnit } from '../../src/types.js';
 
 describe('LocalTime', () => {
   it('parses ISO times', () => {
@@ -37,5 +38,40 @@ describe('LocalTime', () => {
     } finally {
       restore();
     }
+  });
+
+  describe('round', () => {
+    it('rounds to the nearest second with halfExpand by default', () => {
+      expect(LocalTime.of(12, 0, 30, 500).round({ smallestUnit: 'second' }).toISO()).toBe('12:00:31');
+    });
+
+    it('supports trunc rounding', () => {
+      expect(LocalTime.of(12, 0, 30, 500).round({ smallestUnit: 'second', roundingMode: 'trunc' }).toISO()).toBe('12:00:30');
+    });
+
+    it('supports ceil rounding', () => {
+      expect(LocalTime.of(12, 0, 0, 1).round({ smallestUnit: 'second', roundingMode: 'ceil' }).toISO()).toBe('12:00:01');
+    });
+
+    it('supports floor rounding', () => {
+      expect(LocalTime.of(12, 0, 30, 500).round({ smallestUnit: 'second', roundingMode: 'floor' }).toISO()).toBe('12:00:30');
+    });
+
+    it('does not mutate the original instance', () => {
+      const time = LocalTime.of(12, 0, 30, 500);
+      const rounded = time.round({ smallestUnit: 'second' });
+      expect(time.toISO()).toBe('12:00:30.500');
+      expect(rounded.toISO()).toBe('12:00:31');
+    });
+
+    it('rejects calendar units', () => {
+      const bad = 'day' as TimeUnit;
+      expect(() => LocalTime.of(12, 0, 0).round({ smallestUnit: bad })).toThrow(TempoError);
+    });
+
+    it('rejects unsupported rounding modes', () => {
+      const options = { smallestUnit: 'second' as const, roundingMode: 'invalid' as RoundingMode };
+      expect(() => LocalTime.of(12, 0, 30, 500).round(options)).toThrow(TempoError);
+    });
   });
 });

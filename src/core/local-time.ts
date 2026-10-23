@@ -1,6 +1,6 @@
 import { nowMs } from '../clock.js';
 import { TempoError, type ParseResult, unwrapParse } from '../errors.js';
-import type { DurationLike, LocalTimeLike, TimeUnit, WithTimeFields } from '../types.js';
+import type { DurationLike, LocalTimeLike, RoundingMode, TimeUnit, WithTimeFields } from '../types.js';
 import { Duration } from './duration.js';
 import { MILLIS_PER_DAY, MILLIS_PER_HOUR, MILLIS_PER_MINUTE, MILLIS_PER_SECOND } from './range.js';
 
@@ -168,6 +168,32 @@ export class LocalTime {
     }
   }
 
+  round(options: { readonly smallestUnit: TimeUnit; readonly roundingMode?: RoundingMode }): LocalTime {
+    const unit = options.smallestUnit;
+    const divisor = unitDivisor(unit);
+    const ms = this.toMsOfDay();
+    const remainder = ms % divisor;
+    let rounded = ms - remainder;
+    if (remainder !== 0) {
+      const mode = options.roundingMode ?? 'halfExpand';
+      let adjustment = 0;
+      if (mode === 'halfExpand') {
+        const half = divisor / 2;
+        adjustment = remainder > 0 && remainder >= half ? divisor : remainder < 0 && remainder <= -half ? -divisor : 0;
+      } else if (mode === 'ceil') {
+        adjustment = remainder > 0 ? divisor : 0;
+      } else if (mode === 'floor') {
+        adjustment = remainder < 0 ? -divisor : 0;
+      } else if (mode === 'trunc') {
+        adjustment = 0;
+      } else {
+        throw new TempoError('INVALID_ROUNDING_MODE', `Unsupported rounding mode ${mode}`, { input: mode });
+      }
+      rounded += adjustment;
+    }
+    return LocalTime.fromMsOfDay(rounded);
+  }
+
   compare(other: LocalTime): number {
     return LocalTime.compare(this, other);
   }
@@ -210,6 +236,19 @@ export class LocalTime {
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
+}
+
+function unitDivisor(unit: TimeUnit): number {
+  switch (unit) {
+    case 'hour':
+      return MILLIS_PER_HOUR;
+    case 'minute':
+      return MILLIS_PER_MINUTE;
+    case 'second':
+      return MILLIS_PER_SECOND;
+    case 'millisecond':
+      return 1;
+  }
 }
 
 function validateTime(hour: number, minute: number, second: number, millisecond: number): void {
