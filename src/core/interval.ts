@@ -1,6 +1,5 @@
 import { TempoError } from '../errors.js';
 import { Duration } from './duration.js';
-import { Instant } from './instant.js';
 import { LocalDate } from './local-date.js';
 import type { DateUnit, DurationLike } from '../types.js';
 
@@ -75,6 +74,7 @@ export class Interval<T extends IntervalEndpoint<T>> {
   }
 
   *by(unit: DateUnit): IterableIterator<T> {
+    if (this.isEmpty()) return;
     let current = this.#start;
     yield current;
     while (compareEndpoints(current, this.#end) < 0) {
@@ -84,6 +84,7 @@ export class Interval<T extends IntervalEndpoint<T>> {
   }
 
   *iterate(step: Duration | DurationLike): IterableIterator<T> {
+    if (this.isEmpty()) return;
     const duration = Duration.from(step);
     if (duration.isZero() || duration.sign < 0) {
       throw new TempoError('INVALID_INTERVAL', 'Interval iteration step must be non-zero', {
@@ -152,33 +153,21 @@ function currentPlus<T extends IntervalEndpoint<T>>(current: T, step: Duration):
   });
 }
 
-function toEpochMillis<T extends IntervalEndpoint<T>>(value: T): number {
-  if (value instanceof Date) return value.getTime();
-  if (typeof (value as unknown as { toEpochMilliseconds(): unknown }).toEpochMilliseconds === 'function') {
-    return (value as unknown as { toEpochMilliseconds(): number }).toEpochMilliseconds();
+function pluralDurationLikeKey(unit: DateUnit): keyof DurationLike {
+  switch (unit) {
+    case 'year':
+      return 'years';
+    case 'month':
+      return 'months';
+    case 'week':
+      return 'weeks';
+    case 'day':
+      return 'days';
   }
-  throw new TempoError('INVALID_INTERVAL', 'Interval split requires epoch-millisecond endpoints', {
-    input: value,
-  });
-}
-
-function replaceEnd<T extends IntervalEndpoint<T>>(endpoint: T, epochMillis: number): T {
-  if (endpoint instanceof Date) {
-    return new Date(epochMillis) as unknown as T;
-  }
-  if (endpoint instanceof LocalDate) {
-    return LocalDate.fromEpochDay(Math.trunc(epochMillis / 86_400_000)) as unknown as T;
-  }
-  if (typeof (endpoint as unknown as { plus(amount: Duration | DurationLike): unknown }).plus === 'function') {
-    return (endpoint as unknown as { plus(amount: Duration | DurationLike): T }).plus({ milliseconds: epochMillis - toEpochMillis(endpoint) });
-  }
-  throw new TempoError('INVALID_INTERVAL', 'Interval split requires replaceable endpoints', {
-    input: endpoint,
-  });
 }
 
 function advanceByUnit<T extends IntervalEndpoint<T>>(current: T, unit: DateUnit): T {
-  const step = Duration.of({ [unit]: 1 } as DurationLike);
+  const step = Duration.of({ [pluralDurationLikeKey(unit)]: 1 } as DurationLike);
   if (current instanceof LocalDate) {
     return current.plus(step) as unknown as T;
   }

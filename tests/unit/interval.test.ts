@@ -203,9 +203,9 @@ describe('Interval iteration', () => {
 
   it('does not mutate the original interval', () => {
     const interval = Tempo.Interval.of(localStart, localEnd);
-    [...interval.by('day')];
-    [...interval.iterate({ days: 1 })];
-    interval.split({ days: 1 });
+    expect([...interval.by('day')]).toHaveLength(4);
+    expect([...interval.iterate({ days: 1 })]).toHaveLength(4);
+    expect(interval.split({ days: 1 })).toHaveLength(4);
 
     expect(interval.start).toBe(localStart);
     expect(interval.end).toBe(localEnd);
