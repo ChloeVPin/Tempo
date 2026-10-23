@@ -21,7 +21,6 @@ describe('public API exports', () => {
       'LocalDate',
       'LocalDateTime',
       'LocalTime',
-      'RoundingMode',
       'TempoError',
       'ZonedDateTime',
       'civilFromDays',
@@ -59,7 +58,11 @@ describe('public API exports', () => {
       'getDateTimeFormat',
       'toLocaleString',
     ]);
-    expect(runtimeExports(Relative)).toEqual(['fromNow', 'relativeTime']);
+    expect(runtimeExports(Relative)).toEqual([
+      'formatDurationList',
+      'fromNow',
+      'relativeTime',
+    ]);
     expect(runtimeExports(Tz)).toEqual([
       'ZonedDateTime',
       'clearTimeZoneCache',
