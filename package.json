@@ -22,6 +22,7 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": "./tools/codemod/bin.js",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -62,6 +63,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "codemod": "node tools/codemod/bin.js",
     "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",

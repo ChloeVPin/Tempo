@@ -1,4 +1,5 @@
-import { format, ZonedDateTime } from '@chloevpin/tempo/format';
+import { ZonedDateTime } from '@chloevpin/tempo';
+import { format } from '@chloevpin/tempo/format';
 
 const moment = require('moment');
 

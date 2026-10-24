@@ -58,22 +58,30 @@ const assertContainsMomentPatterns = (source: string, label: string) => {
 
 describe('moment import codemod', () => {
   it('rewrites ESM moment imports and preserves formatting', async () => {
-    const { result, expected } = await runTransform('esm-default-import');
+    const { source, result, expected } = await runTransform('esm-default-import');
+    expect(source).not.toBe(expected);
+    expect(result).not.toBe(source);
     expect(result).toBe(expected);
   });
 
   it('rewrites CJS moment requires and preserves formatting', async () => {
-    const { result, expected } = await runTransform('cjs-require');
+    const { source, result, expected } = await runTransform('cjs-require');
+    expect(source).not.toBe(expected);
+    expect(result).not.toBe(source);
     expect(result).toBe(expected);
   });
 
   it('rewrites require aliases without changing the binding name', async () => {
-    const { result, expected } = await runTransform('require-alias');
+    const { source, result, expected } = await runTransform('require-alias');
+    expect(source).not.toBe(expected);
+    expect(result).not.toBe(source);
     expect(result).toBe(expected);
   });
 
   it('rewrites a file mixing ESM imports with a require-based reference', async () => {
-    const { result, expected } = await runTransform('mixed-sources');
+    const { source, result, expected } = await runTransform('mixed-sources');
+    expect(source).not.toBe(expected);
+    expect(result).not.toBe(source);
     expect(result).toBe(expected);
   });
 
@@ -84,9 +92,31 @@ describe('moment import codemod', () => {
 
   it('keeps pre-migration moment patterns in fixture inputs', async () => {
     for (const fixtureName of ['esm-default-import', 'cjs-require', 'require-alias', 'mixed-sources']) {
-      const { source } = await runTransform(fixtureName);
+      const { source, result, expected } = await runTransform(fixtureName);
       assertContainsMomentPatterns(source, fixtureName);
+      expect(source).not.toBe(expected);
+      expect(result).not.toBe(source);
+      expect(result).toBe(expected);
     }
+  });
+
+  it('executes transformed ESM output against dist without throwing', async () => {
+    const { result } = await runTransform('esm-default-import');
+
+    const execResult = await new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
+      const child = spawn(process.execPath, ['--input-type=module', '-e', result], { cwd: repoRoot });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+      child.stdout.on('data', (chunk) => { stdout += chunk; });
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+      child.on('error', reject);
+      child.on('close', (code) => resolve({ stdout, stderr, code: code ?? 0 }));
+    });
+
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
   });
 });
 
@@ -131,6 +161,7 @@ describe('codemod CLI driver', () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain(`transformed ${target}`);
+    expect(result.stdout).toContain("import { moment } from '@chloevpin/tempo/compat/moment';");
     expect(await fs.promises.readFile(target, 'utf8')).toBe("import moment from 'moment';\n\nmoment().format();\n");
   });
 

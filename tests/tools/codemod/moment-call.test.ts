@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '../../..');
+const { spawn } = await import('node:child_process');
 
 let scratchDir: string;
 
@@ -68,5 +70,43 @@ describe('moment call codemod', () => {
   it('rewrites utc to ZonedDateTime with UTC zone', async () => {
     const { result, expected } = await runTransform('utc');
     expect(result).toBe(expected);
+  });
+
+  it('does not match [zZ] inside bracketed literals', async () => {
+    const transform = await createTransform();
+    const source = "const iso = moment('2026-01-01').format('YYYY-MM-DD [Z]');\n";
+    const result = transform({ source });
+    expect(result).toContain('LocalDate.parse');
+    expect(result).not.toContain('ZonedDateTime');
+    expect(result).toContain("import { LocalDate } from '@chloevpin/tempo';");
+  });
+
+  it('maintains idempotency for warnings on repeated runs', async () => {
+    const transform = await createTransform();
+    const source = "const delta = moment('2026-01-02').diff(moment('2026-01-01'), 'day');\n";
+    const firstPass = transform({ source });
+    const secondPass = transform({ source: firstPass });
+    const matches = secondPass.match(/TEMPO-CODEMOD: review diff semantics manually/g);
+    expect(matches).toHaveLength(1);
+  });
+
+  it('executes transformed format-local-date output against dist without throwing', async () => {
+    const { result } = await runTransform('format-local-date');
+    const executableCode = `${result.replace("const moment = require('moment');", '// moment unused')}\nif (iso !== '2026-01-01') throw new Error('mismatch: ' + iso);\n`;
+
+    const execResult = await new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
+      const child = spawn(process.execPath, ['--input-type=module', '-e', executableCode], { cwd: repoRoot });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+      child.stdout.on('data', (chunk) => { stdout += chunk; });
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+      child.on('error', reject);
+      child.on('close', (code) => resolve({ stdout, stderr, code: code ?? 0 }));
+    });
+
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
   });
 });

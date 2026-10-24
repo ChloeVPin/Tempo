@@ -13,7 +13,7 @@ const isMomentCall = (node) => {
   if (ts.isPropertyAccessExpression(callee)) {
     if (callee.name?.text !== 'utc') return false;
     const base = callee.expression;
-    return ts.isIdentifier(base) && base.text === 'moment';
+    return (ts.isIdentifier(base) && base.text === 'moment') || isMomentCall(base);
   }
   return false;
 };
@@ -24,16 +24,23 @@ const getLeadingTrivia = (node, magicString, sourceFile) =>
   magicString.slice(node.getFullStart(sourceFile), node.getStart(sourceFile));
 
 const extractStringArgument = (momentExpr, sourceFile) => {
-  if (!ts.isCallExpression(momentExpr) || momentExpr.arguments.length === 0) {
+  if (!ts.isCallExpression(momentExpr)) {
     return null;
   }
 
-  const arg = momentExpr.arguments[0];
-  if (arg.kind === ts.SyntaxKind.StringLiteral) {
-    return null;
+  if (momentExpr.arguments.length > 0) {
+    const arg = momentExpr.arguments[0];
+    return getNodeText(arg, sourceFile);
   }
 
-  return getNodeText(arg, sourceFile);
+  if (
+    ts.isPropertyAccessExpression(momentExpr.expression) &&
+    ts.isCallExpression(momentExpr.expression.expression)
+  ) {
+    return extractStringArgument(momentExpr.expression.expression, sourceFile);
+  }
+
+  return null;
 };
 
 const mapMomentPattern = (pattern) => {
@@ -98,29 +105,25 @@ const matchToken = (rest) => {
 
 const quoteIfNeeded = (ch) => (/[A-Za-z]/.test(ch) ? `'${ch}'` : ch);
 
-const addedImports = new Set();
+const ensureImport = (state, importStatement) => {
+  if (state.source.includes(importStatement)) return;
+  state.addedImports.add(importStatement);
+};
 
-const ensureImport = (magicString, sourceFile, importStatement) => {
-  const sourceText = magicString.toString();
-  if (sourceText.includes(importStatement)) return;
-  if (addedImports.has(importStatement)) return;
-  addedImports.add(importStatement);
+const selectTargetType = (pattern, parseArg, isUtc) => {
+  const unbracketed = pattern.replace(/\[[^\]]*\]/g, '');
+  const hasZoneToken = /[zZ]|XXX/.test(unbracketed);
+  const hasTimeToken = /[HhmsSaAk]/.test(unbracketed);
+  const cleanInput = parseArg ? parseArg.replace(/^['"`]|['"`]$/g, '').trim() : '';
+  const inputHasZoneOrOffset = isUtc || /(?:T|\s)\d{2}.*(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(cleanInput);
 
-  let insertPos = 0;
-  for (const statement of sourceFile.statements) {
-    const text = sourceText.substring(statement.getStart(sourceFile), statement.getEnd(sourceFile));
-    if (text.trim().startsWith('import ') || text.trim().startsWith('export ')) {
-      insertPos = statement.getEnd(sourceFile);
-    } else {
-      break;
-    }
+  if (hasZoneToken || inputHasZoneOrOffset) {
+    return 'ZonedDateTime';
   }
-
-  const prefix = insertPos > 0 && !sourceText.substring(0, insertPos).endsWith('\n') ? '\n' : '';
-  magicString.appendRight(insertPos, `${prefix}${importStatement}\n`);
-  if ((sourceFile.text[insertPos] ?? '') !== '\n') {
-    magicString.appendRight(insertPos, '\n');
+  if (hasTimeToken) {
+    return 'LocalDateTime';
   }
+  return 'LocalDate';
 };
 
 const UNIT_ALIASES = {
@@ -158,24 +161,25 @@ const replaceCall = (node, replacement, magicString, sourceFile) => {
   magicString.overwrite(node.getFullStart(sourceFile), node.getEnd(sourceFile), `${leading}${replacement}`);
 };
 
-const transformFormat = (callExpression, magicString, sourceFile) => {
+const transformFormat = (callExpression, magicString, sourceFile, state) => {
   if (!ts.isCallExpression(callExpression)) return false;
   const receiver = callExpression.expression;
   if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'format') return false;
   const momentExpr = receiver.expression;
   if (!ts.isCallExpression(momentExpr)) return false;
 
-  if (ts.isPropertyAccessExpression(momentExpr.expression) && momentExpr.expression.name?.text === 'utc' && ts.isIdentifier(momentExpr.expression.expression) && momentExpr.expression.expression.text === 'moment') {
-    const args = callExpression.arguments;
-    if (args.length !== 1 || args[0].kind !== ts.SyntaxKind.StringLiteral) return false;
-    const pattern = args[0].text;
-    const parseArg = extractStringArgument(momentExpr, sourceFile) ?? getNodeText(momentExpr.arguments[0], sourceFile);
-    replaceCall(callExpression, `format(ZonedDateTime.parse(${parseArg}), '${mapMomentPattern(pattern)}')`, magicString, sourceFile);
-    ensureImport(magicString, sourceFile, "import { format, ZonedDateTime } from '@chloevpin/tempo/format';");
-    return true;
-  }
+  const isUtcStatic =
+    ts.isPropertyAccessExpression(momentExpr.expression) &&
+    momentExpr.expression.name?.text === 'utc' &&
+    ts.isIdentifier(momentExpr.expression.expression) &&
+    momentExpr.expression.expression.text === 'moment';
 
-  if (!isMomentCall(momentExpr)) return false;
+  const isUtcMethod =
+    ts.isPropertyAccessExpression(momentExpr.expression) &&
+    momentExpr.expression.name?.text === 'utc' &&
+    isMomentCall(momentExpr.expression.expression);
+
+  if (!isMomentCall(momentExpr) && !isUtcStatic && !isUtcMethod) return false;
 
   const args = callExpression.arguments;
   if (args.length !== 1 || args[0].kind !== ts.SyntaxKind.StringLiteral) return false;
@@ -186,22 +190,16 @@ const transformFormat = (callExpression, magicString, sourceFile) => {
     return true;
   }
 
-  let target = 'LocalDate';
-  if (/[Hhmsa]/u.test(pattern) || /HH:mm:ss/u.test(pattern)) target = 'LocalDateTime';
-  else if (/[zZ]|[+-]\d{2}/u.test(pattern) || /XXX/u.test(pattern)) target = 'ZonedDateTime';
+  const parseArg =
+    extractStringArgument(momentExpr, sourceFile) ??
+    (momentExpr.arguments.length > 0 ? getNodeText(momentExpr.arguments[0], sourceFile) : getNodeText(momentExpr, sourceFile));
 
+  const target = selectTargetType(pattern, parseArg, isUtcStatic || isUtcMethod);
   const mappedPattern = mapMomentPattern(pattern);
-  const parseArg = extractStringArgument(momentExpr, sourceFile) ?? getNodeText(momentExpr, sourceFile);
-  if (target === 'LocalDate') {
-    replaceCall(callExpression, `format(LocalDate.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
-    ensureImport(magicString, sourceFile, "import { format, LocalDate } from '@chloevpin/tempo/format';");
-  } else if (target === 'LocalDateTime') {
-    replaceCall(callExpression, `format(LocalDateTime.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
-    ensureImport(magicString, sourceFile, "import { format, LocalDateTime } from '@chloevpin/tempo/format';");
-  } else {
-    replaceCall(callExpression, `format(ZonedDateTime.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
-    ensureImport(magicString, sourceFile, "import { format, ZonedDateTime } from '@chloevpin/tempo/format';");
-  }
+
+  replaceCall(callExpression, `format(${target}.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
+  ensureImport(state, `import { ${target} } from '@chloevpin/tempo';`);
+  ensureImport(state, "import { format } from '@chloevpin/tempo/format';");
   return true;
 };
 
@@ -232,32 +230,48 @@ const transformDiff = (callExpression, magicString, sourceFile, state) => {
   const momentExpr = receiver.expression;
   if (!isMomentCall(momentExpr)) return false;
 
-  state.warnings.push(`/* TEMPO-CODEMOD: review diff semantics manually */\n`);
+  const warning = '/* TEMPO-CODEMOD: review diff semantics manually */\n';
+  if (!state.source.includes(warning.trim())) {
+    state.warnings.add(warning);
+  }
   const args = callExpression.arguments;
   const argText = args.map((arg) => getNodeText(arg, sourceFile)).join(', ');
   replaceCall(callExpression, `${getNodeText(momentExpr, sourceFile)}.diff(${argText})`, magicString, sourceFile);
   return true;
 };
 
-const transformUtc = (callExpression, magicString, sourceFile) => {
+const transformUtc = (callExpression, magicString, sourceFile, state) => {
   if (!ts.isCallExpression(callExpression)) return false;
   const receiver = callExpression.expression;
   if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'utc') return false;
   const momentExpr = receiver.expression;
-  if (!isMomentCall(momentExpr)) return false;
 
-  const parseArg = extractStringArgument(momentExpr, sourceFile) ?? getNodeText(momentExpr.arguments[0], sourceFile);
+  let parseArg = null;
+  if (ts.isIdentifier(momentExpr) && momentExpr.text === 'moment') {
+    parseArg = callExpression.arguments.length > 0 ? getNodeText(callExpression.arguments[0], sourceFile) : '';
+  } else if (isMomentCall(momentExpr)) {
+    parseArg =
+      extractStringArgument(momentExpr, sourceFile) ??
+      (momentExpr.arguments.length > 0 ? getNodeText(momentExpr.arguments[0], sourceFile) : '');
+  } else {
+    return false;
+  }
+
   replaceCall(callExpression, `ZonedDateTime.parse(${parseArg})`, magicString, sourceFile);
-  ensureImport(magicString, sourceFile, "import { ZonedDateTime } from '@chloevpin/tempo/format';");
+  ensureImport(state, "import { ZonedDateTime } from '@chloevpin/tempo';");
   return true;
 };
 
-const CALL_TRANSFORMS = [transformFormat, transformAdd, transformDiff];
+const CALL_TRANSFORMS = [transformFormat, transformAdd, transformDiff, transformUtc];
 
 export default function transformFile({ source }) {
   const magicString = new MagicString(source);
   const sourceFile = parseSourceFile(source);
-  const state = { warnings: [] };
+  const state = {
+    source,
+    warnings: new Set(),
+    addedImports: new Set(),
+  };
 
   function visit(node) {
     if (ts.isCallExpression(node)) {
@@ -271,9 +285,34 @@ export default function transformFile({ source }) {
 
   visit(sourceFile);
 
+  if (state.addedImports.size > 0) {
+    let insertPos = 0;
+    for (const statement of sourceFile.statements) {
+      const text = source.substring(statement.getStart(sourceFile), statement.getEnd(sourceFile));
+      if (text.trim().startsWith('import ') || text.trim().startsWith('export ')) {
+        insertPos = statement.getEnd(sourceFile);
+      } else {
+        break;
+      }
+    }
+
+    const importsText = Array.from(state.addedImports).join('\n') + '\n';
+    if (insertPos === 0) {
+      const suffix = source.length > 0 && source[0] !== '\n' ? '\n' : '';
+      magicString.prepend(`${importsText}${suffix}`);
+    } else {
+      const prefix = !source.substring(0, insertPos).endsWith('\n') ? '\n' : '';
+      magicString.appendRight(insertPos, `${prefix}${importsText}`);
+    }
+  }
+
   let result = magicString.toString();
-  if (state.warnings.length > 0) {
-    result = state.warnings.join('') + result;
+  if (state.warnings.size > 0) {
+    for (const warning of state.warnings) {
+      if (!source.includes(warning.trim())) {
+        result = warning + result;
+      }
+    }
   }
 
   return result;

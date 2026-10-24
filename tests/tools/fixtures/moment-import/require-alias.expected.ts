@@ -1,4 +1,3 @@
-// Example app
-const { moment: m } = require('moment');
+const { moment: m } = require('@chloevpin/tempo/compat/moment');
 
 m().format();

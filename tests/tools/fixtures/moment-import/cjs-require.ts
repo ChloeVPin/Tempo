@@ -1,4 +1,3 @@
-// Example app
-const { moment } = require('moment');
+const moment = require('moment');
 
 moment().format();

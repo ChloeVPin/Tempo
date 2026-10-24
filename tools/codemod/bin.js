@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const hasDryRun = args.includes('--dry-run') || args.includes('-d');
 const hasHelp = args.includes('--help') || args.includes('-h');
-const ALLOWED_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx']);
+const ALLOWED_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
 const IGNORED_ENTRIES = new Set(['.git', 'node_modules', 'dist', 'coverage']);
 
 if (hasHelp || args.length === 0) {
@@ -50,7 +51,9 @@ const transformFile = (filePath, context) => {
   const result = transformSource(source);
   if (result !== source) {
     console.log(`transformed ${filePath}`);
-    if (!hasDryRun) {
+    if (hasDryRun) {
+      console.log(result);
+    } else {
       fs.writeFileSync(filePath, result, 'utf8');
     }
 
@@ -71,7 +74,20 @@ const shouldWalkFile = (entryPath) => {
 };
 
 paths.forEach((target) => {
-  const stat = fs.statSync(target);
+  if (IGNORED_ENTRIES.has(path.basename(path.resolve(target)))) {
+    return;
+  }
+
+  let stat;
+  try {
+    stat = fs.statSync(target);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return;
+    }
+    throw error;
+  }
+
   const context = { processed: 0, transformed: 0 };
 
   if (stat.isDirectory()) {

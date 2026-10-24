@@ -1,5 +1,6 @@
-import { format, LocalDate } from '@chloevpin/tempo/format';
+import { LocalDate } from '@chloevpin/tempo';
+import { format } from '@chloevpin/tempo/format';
 
 const moment = require('moment');
 
-const iso = format(LocalDate.parse(moment('2026-01-01')), 'yyyy-MM-dd');
+const iso = format(LocalDate.parse('2026-01-01'), 'yyyy-MM-dd');
