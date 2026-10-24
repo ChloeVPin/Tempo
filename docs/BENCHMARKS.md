@@ -6,10 +6,10 @@ Run `npm run bench:artifacts` after updating the local benchmark suite to regene
 
 | Case | Tempo | Temporal | Luxon | date-fns | dayjs | Moment |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Parse ISO date | 155,339 | 0 | 0 | 0 | 0 | 0 |
-| Parse ISO instant | 122,413 | 0 | 0 | 0 | 0 | 0 |
-| Plus day | 74,465 | 0 | 0 | 0 | 0 | 0 |
-| Format ISO | 117,127 | 0 | 0 | 0 | 0 | 0 |
+| Parse ISO date | 5,226,755 | 1,280,840 | 796,484 | 975,693 | 2,622,093 | 546,193 |
+| Parse ISO instant | 2,211,813 | 805,250 | 755,062 | 5,661,148 | 3,529,536 | 256,400 |
+| Plus day | 2,827,639 | 305,075 | 355,216 | 941,802 | 1,027,359 | 445,333 |
+| Format ISO | 3,287,286 | 1,037,683 | 720,335 | 2,443,794 | 617,251 | 449,664 |
 
 ## gzip size
 
