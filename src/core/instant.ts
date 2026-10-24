@@ -1,6 +1,6 @@
 import { nowMs } from '../clock.js';
 import { TempoError, type ParseResult, unwrapParse } from '../errors.js';
-import type { DurationLike, TimeUnit } from '../types.js';
+import type { DurationLike, RoundingMode, TimeUnit } from '../types.js';
 import type { ZonedDateTime } from '../tz/zoned-datetime.js';
 import { Duration } from './duration.js';
 import {
@@ -12,6 +12,8 @@ import {
   MIN_EPOCH_MILLIS,
   MAX_EPOCH_MILLIS,
   roundingUnitDivisor,
+  validateRoundingMode,
+  validateTimeUnit,
 } from './range.js';
 
 export class Instant {
@@ -112,17 +114,9 @@ export class Instant {
   }
 
   round(options: { readonly smallestUnit: TimeUnit; readonly roundingMode?: RoundingMode }): Instant {
-    const unit = options.smallestUnit;
-    if (unit !== 'hour' && unit !== 'minute' && unit !== 'second' && unit !== 'millisecond') {
-      throw new TempoError('INCOMPATIBLE_UNIT', 'Instant.round only supports time units', {
-        input: unit,
-      });
-    }
-    const mode = options.roundingMode ?? 'halfExpand';
-    if (!ROUNDING_MODES.includes(mode)) {
-      throw new TempoError('INVALID_ROUNDING_MODE', `Unsupported rounding mode ${mode}`, { input: mode });
-    }
-    const divisor = roundingUnitDivisor(unit);
+    validateTimeUnit(options.smallestUnit);
+    const mode = validateRoundingMode(options.roundingMode);
+    const divisor = roundingUnitDivisor(options.smallestUnit);
     const remainder = this.epochMillis % divisor;
     let rounded = this.epochMillis - remainder;
     if (remainder !== 0) {

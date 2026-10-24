@@ -23,18 +23,24 @@ import {
   requireValidDate,
 } from './civil.js';
 import { Duration } from './duration.js';
-import { type LocalDatePatternParser } from './parser-registry.js';
+import {
+  getLocalDateParser,
+  registerLocalDateParser as registerLocalDateParserImpl,
+  type LocalDatePatternParser,
+} from './parser-registry.js';
 import { resolveDate } from './overflow.js';
 
 export class LocalDate {
-  static customPatternParser: LocalDatePatternParser | null = null;
-
-  static registerLocalDateParser(parser: LocalDatePatternParser | null): void {
-    LocalDate.customPatternParser = parser;
+  static get customPatternParser(): LocalDatePatternParser | null {
+    return getLocalDateParser();
   }
 
-  static clearCustomDateParser(): void {
-    LocalDate.customPatternParser = null;
+  static set customPatternParser(parser: LocalDatePatternParser | null) {
+    registerLocalDateParserImpl(parser);
+  }
+
+  static registerLocalDateParser(parser: LocalDatePatternParser | null): void {
+    registerLocalDateParserImpl(parser);
   }
   readonly year: number;
   readonly month: number;
@@ -75,8 +81,9 @@ export class LocalDate {
 
   static tryParse(input: string, pattern?: string): ParseResult<LocalDate> {
     if (pattern === undefined) return parseLocalDate(input);
-    if (LocalDate.customPatternParser !== null) {
-      const parsed = LocalDate.customPatternParser(input, pattern);
+    const parser = getLocalDateParser();
+    if (parser !== null) {
+      const parsed = parser(input, pattern);
       if (parsed.ok) {
         try {
           return {

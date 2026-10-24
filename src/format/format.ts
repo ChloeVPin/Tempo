@@ -9,12 +9,11 @@ import { formatOffset } from '../tz/offset.js';
 import type { ZonedDateTime } from '../tz/zoned-datetime.js';
 import { tokenize, type FormatToken } from './tokens.js';
 import { createLocalDateParser } from './parse.js';
+import { registerLocalDateParser } from '../core/parser-registry.js';
 
 export type Formattable = LocalDate | LocalTime | LocalDateTime | Instant | ZonedDateTime;
 
-LocalDate.registerLocalDateParser((input: string, pattern: string) =>
-  createLocalDateParser()(input, pattern),
-);
+registerLocalDateParser(createLocalDateParser());
 
 const compilerCache = new Map<string, FormatToken[]>();
 const dayPeriodCache = new Map<string, Intl.DateTimeFormat>();

@@ -8,3 +8,4 @@ registerLocalDateParser(createLocalDateParser());
 export { format, clearFormatCache, type Formattable };
 export { tokenize, type FormatToken };
 export { createLocalDateParser, type ParsedDateFields };
+export { registerLocalDateParser };

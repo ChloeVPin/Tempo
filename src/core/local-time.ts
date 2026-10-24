@@ -10,6 +10,7 @@ import {
   MILLIS_PER_SECOND,
   roundingUnitDivisor,
   validateRoundingMode,
+  validateTimeUnit,
 } from './range.js';
 
 export class LocalTime {
@@ -177,14 +178,14 @@ export class LocalTime {
   }
 
   round(options: { readonly smallestUnit: TimeUnit; readonly roundingMode?: RoundingMode }): LocalTime {
-    const unit = options.smallestUnit;
-    validateRoundingMode(options.roundingMode);
-    const divisor = roundingUnitDivisor(unit);
+    validateTimeUnit(options.smallestUnit);
+    const mode = validateRoundingMode(options.roundingMode);
+    const divisor = roundingUnitDivisor(options.smallestUnit);
     const ms = this.toMsOfDay();
     const remainder = ms % divisor;
     let rounded = ms - remainder;
     if (remainder !== 0) {
-      rounded += applyRoundingMode(divisor, remainder, options.roundingMode ?? 'halfExpand');
+      rounded += applyRoundingMode(divisor, remainder, mode);
     }
     return LocalTime.fromMsOfDay(rounded);
   }

@@ -141,8 +141,8 @@ function compareEndpoints<T extends IntervalEndpoint<T>>(a: T, b: T): number {
 }
 
 function currentPlus<T extends IntervalEndpoint<T>>(current: T, step: Duration): T {
-  if (current instanceof LocalDate) {
-    return current.plus(step) as unknown as T;
+  if (current instanceof LocalDate || current instanceof LocalDateTime) {
+    return (current as unknown as { plus(d: Duration): T }).plus(step);
   }
   if (current instanceof Instant) {
     return advanceInstantCalendar(current, step) as unknown as T;
@@ -158,62 +158,29 @@ function currentPlus<T extends IntervalEndpoint<T>>(current: T, step: Duration):
   });
 }
 
-function pluralDurationLikeKey(unit: DateUnit): keyof DurationLike {
-  switch (unit) {
-    case 'year':
-      return 'years';
-    case 'month':
-      return 'months';
-    case 'week':
-      return 'weeks';
-    case 'day':
-      return 'days';
-  }
-}
+const PLURAL_UNITS: Record<DateUnit, keyof DurationLike> = {
+  year: 'years',
+  month: 'months',
+  week: 'weeks',
+  day: 'days',
+};
 
 function advanceByUnit<T extends IntervalEndpoint<T>>(current: T, unit: DateUnit): T {
-  const step = Duration.of({ [pluralDurationLikeKey(unit)]: 1 } as DurationLike);
-  if (current instanceof LocalDate) {
-    return current.plus(step) as unknown as T;
-  }
-  if (current instanceof Instant) {
-    return advanceInstantCalendar(current, step) as unknown as T;
-  }
-  if (current instanceof LocalDateTime) {
-    return current.plus(step) as unknown as T;
-  }
-  if (current instanceof Date) {
-    const milliseconds =
-      unit === 'year'
-        ? 366 * 86_400_000
-        : unit === 'month'
-          ? 31 * 86_400_000
-          : unit === 'week'
-            ? 7 * 86_400_000
-            : 86_400_000;
-    return new Date(current.getTime() + milliseconds) as unknown as T;
-  }
-  if (typeof (current as unknown as { plus(amount: Duration | DurationLike): unknown }).plus === 'function') {
-    return (current as unknown as { plus(amount: Duration | DurationLike): T }).plus(step);
-  }
-  throw new TempoError('INCOMPATIBLE_UNIT', 'Interval iteration requires an advanceable endpoint', {
-    input: current,
-  });
+  return currentPlus(current, Duration.of({ [PLURAL_UNITS[unit]]: 1 } as DurationLike));
 }
 
 function advanceInstantCalendar(instant: Instant, step: Duration): Instant {
-  const date = new Date(instant.epochMillis);
-  const local = LocalDateTime.of(
-    date.getUTCFullYear(),
-    date.getUTCMonth() + 1,
-    date.getUTCDate(),
-    date.getUTCHours(),
-    date.getUTCMinutes(),
-    date.getUTCSeconds(),
-    date.getUTCMilliseconds(),
-  );
-  const advanced = local.plus(step);
-  const ms = utcMillis(advanced.year, advanced.month, advanced.day, advanced.hour, advanced.minute, advanced.second, advanced.millisecond);
+  const d = new Date(instant.epochMillis);
+  const l = LocalDateTime.of(
+    d.getUTCFullYear(),
+    d.getUTCMonth() + 1,
+    d.getUTCDate(),
+    d.getUTCHours(),
+    d.getUTCMinutes(),
+    d.getUTCSeconds(),
+    d.getUTCMilliseconds(),
+  ).plus(step);
+  const ms = utcMillis(l.year, l.month, l.day, l.hour, l.minute, l.second, l.millisecond);
   if (ms === null) {
     throw new TempoError('OUT_OF_RANGE', 'Instant calendar step produced invalid UTC fields', {
       input: instant,

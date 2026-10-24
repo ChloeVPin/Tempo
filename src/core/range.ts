@@ -8,6 +8,7 @@ export const MILLIS_PER_MINUTE = 60_000;
 export const MILLIS_PER_HOUR = 3_600_000;
 export const MILLIS_PER_DAY = 86_400_000;
 
+import { TempoError } from '../errors.js';
 import type { RoundingMode, TimeUnit } from '../types.js';
 
 export function isEpochDayInRange(epochDay: number): boolean {
@@ -18,23 +19,29 @@ export function isEpochMillisInRange(epochMs: number): boolean {
   return Number.isFinite(epochMs) && epochMs >= MIN_EPOCH_MILLIS && epochMs <= MAX_EPOCH_MILLIS;
 }
 
+const TIME_DIVISORS: Record<string, number> = {
+  hour: MILLIS_PER_HOUR,
+  minute: MILLIS_PER_MINUTE,
+  second: MILLIS_PER_SECOND,
+  millisecond: 1,
+};
+
 export function roundingUnitDivisor(unit: TimeUnit): number {
-  switch (unit) {
-    case 'hour':
-      return MILLIS_PER_HOUR;
-    case 'minute':
-      return MILLIS_PER_MINUTE;
-    case 'second':
-      return MILLIS_PER_SECOND;
-    case 'millisecond':
-      return 1;
+  return TIME_DIVISORS[unit]!;
+}
+
+export function validateTimeUnit(unit: TimeUnit): void {
+  if (!TIME_DIVISORS[unit]) {
+    throw new TempoError('INCOMPATIBLE_UNIT', 'Only time units are supported', { input: unit });
   }
 }
 
-export function validateRoundingMode(mode: RoundingMode | undefined): void {
-  if (mode !== undefined && !ROUNDING_MODES.includes(mode)) {
-    throw new Error(`Unsupported rounding mode ${mode}`);
+export function validateRoundingMode(mode: RoundingMode | undefined): RoundingMode {
+  const m = mode ?? 'halfExpand';
+  if (m !== 'halfExpand' && m !== 'ceil' && m !== 'floor' && m !== 'trunc') {
+    throw new TempoError('INVALID_ROUNDING_MODE', `Unsupported rounding mode ${m}`, { input: m });
   }
+  return m;
 }
 
 export function applyRoundingMode(divisor: number, remainder: number, mode: RoundingMode): number {
@@ -42,8 +49,5 @@ export function applyRoundingMode(divisor: number, remainder: number, mode: Roun
     const half = divisor / 2;
     return remainder > 0 && remainder >= half ? divisor : remainder < 0 && remainder <= -half ? -divisor : 0;
   }
-  if (mode === 'ceil') return remainder > 0 ? divisor : 0;
-  if (mode === 'floor') return remainder < 0 ? -divisor : 0;
-  if (mode === 'trunc') return 0;
-  throw new Error(`Unsupported rounding mode ${mode}`);
+  return mode === 'ceil' ? (remainder > 0 ? divisor : 0) : mode === 'floor' ? (remainder < 0 ? -divisor : 0) : 0;
 }
