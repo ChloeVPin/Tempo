@@ -106,7 +106,7 @@ function renderZoned(value: ZonedDateTime | null) {
 }
 
 function renderTypeExplorer(iso: string) {
-  const zdt = safeZoned(iso) ?? safeInstant(iso) ? safeInstant(iso)!.toZonedDateTime('UTC') : null;
+  const zdt = safeZoned(iso) ?? (safeInstant(iso) ? safeInstant(iso)!.toZonedDateTime('UTC') : null);
   if (zdt) {
     const localDateTime = zdt.toLocalDateTime();
     const localTime = zdt.toLocalTime();
@@ -150,13 +150,13 @@ function renderTypeExplorer(iso: string) {
 function update() {
   const iso = isoInput?.value ?? '';
   const instant = safeInstant(iso);
-  const localDate = safeLocalDate(iso);
+  const localDate = safeLocalDate(iso) ?? safeZoned(iso)?.toLocalDate() ?? instant?.toZonedDateTime('UTC').toLocalDate() ?? null;
   const zoned = safeZoned(iso);
 
   renderInstant(instant);
   renderLocalDate(localDate);
   renderZoned(zoned);
-  renderTypeExplorer(zoned ? zoned.toISO() : instant ? instant.toZonedDateTime('UTC').toISO() : '');
+  renderTypeExplorer(zoned ? zoned.toISO() : instant ? instant.toZonedDateTime('UTC').toISO() : localDate ? localDate.toISO() : '');
 }
 
 export function initIsoParser() {
