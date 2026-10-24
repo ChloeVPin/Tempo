@@ -30,12 +30,12 @@ describe('6-way ecosystem benchmarks', () => {
   bench('dayjs parse ISO instant', () => void dayjs(isoDateTime));
   bench('moment parse ISO instant', () => void momentJs(isoDateTime));
 
-  bench('tempo parse ISO zoned', () => void ZonedDateTime.parse(isoZoned));
-  bench('temporal parse ISO zoned', () => void Temporal.ZonedDateTime.from(isoZoned));
-  bench('luxon parse ISO zoned', () => void DateTime.fromISO(isoZoned));
-  bench('date-fns parse ISO zoned', () => void new Date(isoDateTime));
-  bench('dayjs parse ISO zoned', () => void dayjs(isoDateTime));
-  bench('moment parse ISO zoned', () => void momentJs(isoDateTime));
+  bench('tempo parse local zoned', () => void ZonedDateTime.parse(isoZoned));
+  bench('temporal parse local zoned', () => void Temporal.ZonedDateTime.from(isoZoned));
+  bench('luxon parse local zoned', () => void DateTime.fromISO(isoZoned));
+  bench('date-fns parse zoned as local', () => void new Date(isoDateTime));
+  bench('dayjs parse zoned as local', () => void dayjs(isoDateTime));
+  bench('moment parse zoned as local', () => void momentJs(isoDateTime));
 
   bench('tempo arithmetic plus day', () => void LocalDate.parse(isoDate).plus({ days: 1 }));
   bench('temporal arithmetic plus day', () => void Temporal.PlainDate.from(isoDate).add({ days: 1 }));
@@ -62,7 +62,7 @@ describe('6-way ecosystem benchmarks', () => {
   bench('dayjs format ISO', () => void dayjs(isoDate).format('YYYY-MM-DD'));
   bench('moment format ISO', () => void momentJs(isoDate).format('YYYY-MM-DD'));
 
-  bench('tempo format with time tokens', () => void tempoFormat(LocalDateTime.parse(isoDateTime), 'yyyy-MM-dd HH:mm:ss'));
+  bench('tempo format with time tokens', () => void tempoFormat(LocalDateTime.parse('2026-06-01T12:00:00'), 'yyyy-MM-dd HH:mm:ss'));
   bench('temporal format with time tokens', () => void Temporal.Instant.from(isoDateTime).toZonedDateTimeISO('UTC').toPlainDateTime().toString());
   bench('luxon format with time tokens', () => void DateTime.fromISO(isoDateTime, { zone: 'utc' }).toFormat('yyyy-MM-dd HH:mm:ss'));
   bench('date-fns format with time tokens', () => void format(new Date(isoDateTime), 'yyyy-MM-dd HH:mm:ss'));

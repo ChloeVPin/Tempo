@@ -118,7 +118,7 @@ function generateSvg(benchmarks, bundleSize) {
         {key: 'dateFns.parse.instant', label: 'date-fns parse instant'},
         {key: 'dayjs.parse.instant', label: 'dayjs parse instant'},
         {key: 'moment.parse.instant', label: 'Moment parse instant'},
-        {key: 'tempo.parse.zoned', label: 'Tempo parse zoned'},
+        {key: 'tempo.parse.zoned', label: 'Tempo parse local zoned'},
       ],
     },
     {
@@ -199,7 +199,7 @@ function buildMarkdown(benchmarks, bundleSize) {
   const rows = [
     { case: 'Parse ISO date', tempo: benchmarks.tempo.parse.date, temporal: benchmarks.temporal.parse.date, luxon: benchmarks.luxon.parse.date, dateFns: benchmarks.dateFns.parse.date, dayjs: benchmarks.dayjs.parse.date, moment: benchmarks.moment.parse.date },
     { case: 'Parse ISO instant', tempo: benchmarks.tempo.parse.instant, temporal: benchmarks.temporal.parse.instant, luxon: benchmarks.luxon.parse.instant, dateFns: benchmarks.dateFns.parse.instant, dayjs: benchmarks.dayjs.parse.instant, moment: benchmarks.moment.parse.instant },
-    { case: 'Parse ISO zoned', tempo: benchmarks.tempo.parse.zoned, temporal: benchmarks.temporal.parse.zoned, luxon: benchmarks.luxon.parse.zoned, dateFns: benchmarks.dateFns.parse.zoned, dayjs: benchmarks.dayjs.parse.zoned, moment: benchmarks.moment.parse.zoned },
+    { case: 'Parse local zoned', tempo: benchmarks.tempo.parse.zoned, temporal: benchmarks.temporal.parse.zoned, luxon: benchmarks.luxon.parse.zoned, dateFns: benchmarks.dateFns.parse.zoned, dayjs: benchmarks.dayjs.parse.zoned, moment: benchmarks.moment.parse.zoned },
     { case: 'Plus day', tempo: benchmarks.tempo.arithmetic.day, temporal: benchmarks.temporal.arithmetic.day, luxon: benchmarks.luxon.arithmetic.day, dateFns: benchmarks.dateFns.arithmetic.day, dayjs: benchmarks.dayjs.arithmetic.day, moment: benchmarks.moment.arithmetic.day },
     { case: 'Plus minute', tempo: benchmarks.tempo.arithmetic.minute, temporal: benchmarks.temporal.arithmetic.minute, luxon: benchmarks.luxon.arithmetic.minute, dateFns: benchmarks.dateFns.arithmetic.minute, dayjs: benchmarks.dayjs.arithmetic.minute, moment: benchmarks.moment.arithmetic.minute },
     { case: 'Format ISO', tempo: benchmarks.tempo.format.iso, temporal: benchmarks.temporal.format.iso, luxon: benchmarks.luxon.format.iso, dateFns: benchmarks.dateFns.format.iso, dayjs: benchmarks.dayjs.format.iso, moment: benchmarks.moment.format.iso },
@@ -218,6 +218,15 @@ function buildMarkdown(benchmarks, bundleSize) {
   ];
 
   for (const row of rows) {
+    const missing = Object.entries(row)
+      .filter(([key, value]) => key !== 'case' && !Number.isFinite(value))
+      .map(([key]) => key)
+      .join(', ');
+
+    if (missing) {
+      throw new Error(`Missing benchmark output for ${row.case}: ${missing}`);
+    }
+
     lines.push(
       `| ${row.case} | ${formatNumber(row.tempo)} | ${formatNumber(row.temporal)} | ${formatNumber(row.luxon)} | ${formatNumber(row.dateFns)} | ${formatNumber(row.dayjs)} | ${formatNumber(row.moment)} |`,
     );
@@ -287,12 +296,12 @@ const BENCHMARK_TARGETS = {
     'date-fns parse ISO instant': 'dateFns.instant',
     'dayjs parse ISO instant': 'dayjs.instant',
     'moment parse ISO instant': 'moment.instant',
-    'tempo parse ISO zoned': 'tempo.parse.zoned',
-    'temporal parse ISO zoned': 'temporal.parse.zoned',
-    'luxon parse ISO zoned': 'luxon.parse.zoned',
-    'date-fns parse ISO zoned': 'dateFns.parse.zoned',
-    'dayjs parse ISO zoned': 'dayjs.parse.zoned',
-    'moment parse ISO zoned': 'moment.parse.zoned',
+    'tempo parse local zoned': 'tempo.parse.zoned',
+    'temporal parse local zoned': 'temporal.parse.zoned',
+    'luxon parse local zoned': 'luxon.parse.zoned',
+    'date-fns parse zoned as local': 'dateFns.parse.zoned',
+    'dayjs parse zoned as local': 'dayjs.parse.zoned',
+    'moment parse zoned as local': 'moment.parse.zoned',
     'tempo arithmetic plus day': 'tempo.arithmetic.day',
     'temporal arithmetic plus day': 'temporal.arithmetic.day',
     'luxon arithmetic plus day': 'luxon.arithmetic.day',

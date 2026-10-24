@@ -6,9 +6,9 @@ Most JavaScript date bugs come from one mistake: treating time as a single numbe
 
 | Failure mode | Reproduces with |
 |---|---|
-| Midnight shift | `new Date('2026-03-08T00:00:00')` in `America/New_York` |
+| Midnight shift | `2026-03-08` in `America/New_York` |
 | Month-end overflow | Adding 1 month to January 31st |
-| Week-year error | Formatting early January with week-year tokens |
+| Week-year error | Formatting early January with `YYYY` |
 
 Each section below shows the bug, why it happens, and the Tempo answer.
 
@@ -39,7 +39,7 @@ plus / minus / with      -> returns new values
 | Separate types      | no          | no             | no     | yes        |
 | Immutable API       | no          | yes            | no     | yes        |
 | Strict ISO default  | no          | no             | no     | yes        |
-| Month-end safety    | no          | no             | no     | yes        |
+| Month-end safety    | no          | yes            | no     | yes        |
 | DST policy control  | no          | no             | no     | yes        |
 | Zero runtime deps   | n/a         | yes            | no     | yes        |
 ```
@@ -48,28 +48,31 @@ plus / minus / with      -> returns new values
 
 ### What breaks
 
-`2026-03-08` is the New York spring-forward transition. Midnight in that zone does not exist. Libraries that silently ask the host timezone for a local midnight can drift the instant forward or backward depending on the runtime and adapter.
+`2018-11-04` at midnight in `America/Sao_Paulo` is the spring-forward gap. Local midnight does not exist, so wrappers that silently resolve it can return a shifted instant.
 
 ```js
 // Native Date
-new Date('2026-03-08').toISOString();
-// => 2026-03-08T05:00:00.000Z
+new Date('2018-11-04T03:00:00-03:00').toISOString();
+// => 2018-11-04T06:00:00.000Z
 
 // @formkit/tempo
-import { DateTime } from '@formkit/tempo';
-new DateTime('2026-03-08').toISO();
-// => 2026-03-08T05:00:00.000Z
+import * as t from '@formkit/tempo';
+t.addMonth(t.date('2018-11-04T03:00:00-03:00'), 1).toISOString();
+// => 2018-12-04T02:00:00.000Z
 
 // Moment
 import moment from 'moment';
 import 'moment-timezone';
-moment.tz('2026-03-08', 'America/New_York').format();
-// => 2026-03-08T00:00:00-05:00
+moment.tz('2018-11-04', 'America/Sao_Paulo').format();
+// => 2018-11-04T00:00:00-03:00
 
 // Tempo
 import { ZonedDateTime } from '@chloevpin/tempo';
-ZonedDateTime.parse('2026-03-08', 'America/New_York').toISO();
-// => 2026-03-08T05:00:00.000Z
+ZonedDateTime.parse('2018-11-04T00:00:00-03:00[America/Sao_Paulo]').toISO();
+// => 2018-11-04T00:00:00-03:00[America/Sao_Paulo]
+// A missing local time must be resolved explicitly:
+ZonedDateTime.fromLocal(LocalDateTime.of(2018, 11, 4, 1, 30), 'America/Sao_Paulo', { disambiguation: 'later' }).toISO();
+// => '2018-11-04T03:00:00-02:00[America/Sao_Paulo]'
 ```
 
 ### Why it happens
@@ -88,18 +91,19 @@ Adding 1 month to January 31 should land on February 28 or March 3 depending on 
 
 ```js
 // Native Date
-new Date('2026-01-31');
+const date = new Date('2026-01-31');
 date.setMonth(date.getMonth() + 1);
 date.toISOString().slice(0, 10);
-// => '2026-03-03'
-
-// @formkit/tempo
-new DateTime('2026-01-31').plus({ months: 1 }).toISODate();
 // => '2026-03-03'
 
 // Moment
 import moment from 'moment';
 moment('2026-01-31').add(1, 'month').format('YYYY-MM-DD');
+// => '2026-02-28'
+
+// @formkit/tempo
+import * as t from '@formkit/tempo';
+t.date('2026-01-31').addMonth(1).toISO();
 // => '2026-03-03'
 
 // Tempo
@@ -120,7 +124,7 @@ Core Tempo months are 1-12, immutable values are returned from arithmetic, and m
 
 ### What breaks
 
-`moment(string)` and some formatter defaults treat `YYYY` as calendar year. In Temporal-style formatting, `YYYY` is a week-year token. If you copy migration snippets without changing tokens, early January dates can roll into the previous calendar year.
+Tempo supports ISO week-date inspection through `LocalDate.isoWeekYear()`, `LocalDate.isoWeek()`, and `LocalDate.ofIsoWeek(...)`, but core formatting never treats `YYYY` as week-year. Instead, `YYYY` is an unrecognized token and is rendered literally, so `format(LocalDate.parse('2026-01-01'), 'YYYY')` returns `YYYY`, not `2025`.
 
 ```js
 // Moment
@@ -132,7 +136,7 @@ moment('2026-01-01').format('YYYY');
 import { LocalDate } from '@chloevpin/tempo';
 import { format } from '@chloevpin/tempo/format';
 format(LocalDate.parse('2026-01-01'), 'YYYY');
-// => '2025'
+// => 'YYYY'
 ```
 
 ### Why it happens
