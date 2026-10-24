@@ -1,9 +1,29 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+let scratchDir: string;
+
+const writeScratchFile = async (fileName: string, contents: string) => {
+  await fs.promises.writeFile(path.join(scratchDir, fileName), contents);
+};
+
+const resetScratchFiles = async () => {
+  await writeScratchFile('moment-file.ts', "import moment from 'moment';\n\nmoment().format('YYYY-MM-DD');\n");
+  await writeScratchFile('unrelated-file.ts', "const now = new Date();\n");
+};
+
+beforeAll(async () => {
+  scratchDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'tempo-codemod-call-'));
+  await resetScratchFiles();
+});
+
+beforeEach(resetScratchFiles);
+
 const createTransform = async () => {
   const transformPath = path.resolve(__dirname, '../../../tools/codemod/transforms/moment-call-transform.js');
   const transformModule = await import(transformPath);

@@ -23,6 +23,19 @@ const getNodeText = (node, sourceFile) => sourceFile.text.substring(node.getStar
 const getLeadingTrivia = (node, magicString, sourceFile) =>
   magicString.slice(node.getFullStart(sourceFile), node.getStart(sourceFile));
 
+const extractStringArgument = (momentExpr, sourceFile) => {
+  if (!ts.isCallExpression(momentExpr) || momentExpr.arguments.length === 0) {
+    return null;
+  }
+
+  const arg = momentExpr.arguments[0];
+  if (arg.kind === ts.SyntaxKind.StringLiteral) {
+    return null;
+  }
+
+  return getNodeText(arg, sourceFile);
+};
+
 const mapMomentPattern = (pattern) => {
   let out = '';
   let i = 0;
@@ -85,6 +98,31 @@ const matchToken = (rest) => {
 
 const quoteIfNeeded = (ch) => (/[A-Za-z]/.test(ch) ? `'${ch}'` : ch);
 
+const addedImports = new Set();
+
+const ensureImport = (magicString, sourceFile, importStatement) => {
+  const sourceText = magicString.toString();
+  if (sourceText.includes(importStatement)) return;
+  if (addedImports.has(importStatement)) return;
+  addedImports.add(importStatement);
+
+  let insertPos = 0;
+  for (const statement of sourceFile.statements) {
+    const text = sourceText.substring(statement.getStart(sourceFile), statement.getEnd(sourceFile));
+    if (text.trim().startsWith('import ') || text.trim().startsWith('export ')) {
+      insertPos = statement.getEnd(sourceFile);
+    } else {
+      break;
+    }
+  }
+
+  const prefix = insertPos > 0 && !sourceText.substring(0, insertPos).endsWith('\n') ? '\n' : '';
+  magicString.appendRight(insertPos, `${prefix}${importStatement}\n`);
+  if ((sourceFile.text[insertPos] ?? '') !== '\n') {
+    magicString.appendRight(insertPos, '\n');
+  }
+};
+
 const UNIT_ALIASES = {
   d: 'days',
   day: 'days',
@@ -125,6 +163,18 @@ const transformFormat = (callExpression, magicString, sourceFile) => {
   const receiver = callExpression.expression;
   if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'format') return false;
   const momentExpr = receiver.expression;
+  if (!ts.isCallExpression(momentExpr)) return false;
+
+  if (ts.isPropertyAccessExpression(momentExpr.expression) && momentExpr.expression.name?.text === 'utc' && ts.isIdentifier(momentExpr.expression.expression) && momentExpr.expression.expression.text === 'moment') {
+    const args = callExpression.arguments;
+    if (args.length !== 1 || args[0].kind !== ts.SyntaxKind.StringLiteral) return false;
+    const pattern = args[0].text;
+    const parseArg = extractStringArgument(momentExpr, sourceFile) ?? getNodeText(momentExpr.arguments[0], sourceFile);
+    replaceCall(callExpression, `format(ZonedDateTime.parse(${parseArg}), '${mapMomentPattern(pattern)}')`, magicString, sourceFile);
+    ensureImport(magicString, sourceFile, "import { format, ZonedDateTime } from '@chloevpin/tempo/format';");
+    return true;
+  }
+
   if (!isMomentCall(momentExpr)) return false;
 
   const args = callExpression.arguments;
@@ -132,7 +182,7 @@ const transformFormat = (callExpression, magicString, sourceFile) => {
   const pattern = args[0].text;
 
   if (!pattern) {
-    replaceCall(callExpression, `${getNodeText(momentExpr, sourceFile)}.toISO()`, magicString, sourceFile);
+    replaceCall(callExpression, `${getNodeText(momentExpr, sourceFile)}.toISOString()`, magicString, sourceFile);
     return true;
   }
 
@@ -141,12 +191,16 @@ const transformFormat = (callExpression, magicString, sourceFile) => {
   else if (/[zZ]|[+-]\d{2}/u.test(pattern) || /XXX/u.test(pattern)) target = 'ZonedDateTime';
 
   const mappedPattern = mapMomentPattern(pattern);
+  const parseArg = extractStringArgument(momentExpr, sourceFile) ?? getNodeText(momentExpr, sourceFile);
   if (target === 'LocalDate') {
-    replaceCall(callExpression, `format(LocalDate.parse(${getNodeText(momentExpr, sourceFile)}), '${mappedPattern}')`, magicString, sourceFile);
+    replaceCall(callExpression, `format(LocalDate.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
+    ensureImport(magicString, sourceFile, "import { format, LocalDate } from '@chloevpin/tempo/format';");
   } else if (target === 'LocalDateTime') {
-    replaceCall(callExpression, `format(LocalDateTime.parse(${getNodeText(momentExpr, sourceFile)}), '${mappedPattern}')`, magicString, sourceFile);
+    replaceCall(callExpression, `format(LocalDateTime.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
+    ensureImport(magicString, sourceFile, "import { format, LocalDateTime } from '@chloevpin/tempo/format';");
   } else {
-    replaceCall(callExpression, `format(${getNodeText(momentExpr, sourceFile)}.zoned, '${mappedPattern}')`, magicString, sourceFile);
+    replaceCall(callExpression, `format(ZonedDateTime.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
+    ensureImport(magicString, sourceFile, "import { format, ZonedDateTime } from '@chloevpin/tempo/format';");
   }
   return true;
 };
@@ -190,16 +244,15 @@ const transformUtc = (callExpression, magicString, sourceFile) => {
   const receiver = callExpression.expression;
   if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'utc') return false;
   const momentExpr = receiver.expression;
-  if (!ts.isCallExpression(momentExpr) || !ts.isPropertyAccessExpression(momentExpr.expression)) return false;
-  const base = momentExpr.expression;
-  if (!ts.isIdentifier(base) || base.text !== 'moment') return false;
+  if (!isMomentCall(momentExpr)) return false;
 
-  const argText = getNodeText(momentExpr.arguments[0], sourceFile);
-  replaceCall(callExpression, `ZonedDateTime.parse(${argText})`, magicString, sourceFile);
+  const parseArg = extractStringArgument(momentExpr, sourceFile) ?? getNodeText(momentExpr.arguments[0], sourceFile);
+  replaceCall(callExpression, `ZonedDateTime.parse(${parseArg})`, magicString, sourceFile);
+  ensureImport(magicString, sourceFile, "import { ZonedDateTime } from '@chloevpin/tempo/format';");
   return true;
 };
 
-const CALL_TRANSFORMS = [transformFormat, transformAdd, transformDiff, transformUtc];
+const CALL_TRANSFORMS = [transformFormat, transformAdd, transformDiff];
 
 export default function transformFile({ source }) {
   const magicString = new MagicString(source);

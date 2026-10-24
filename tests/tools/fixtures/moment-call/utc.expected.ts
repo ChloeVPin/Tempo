@@ -1,3 +1,5 @@
+import { format, ZonedDateTime } from '@chloevpin/tempo/format';
+
 const moment = require('moment');
 
-const zoned = format(LocalDate.parse(moment.utc('2026-01-01T00:00:00Z')), 'yyyy-MM-dd');
+const zoned = format(ZonedDateTime.parse('2026-01-01T00:00:00Z'), 'yyyy-MM-dd HH:mm:ss');
