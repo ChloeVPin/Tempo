@@ -9,43 +9,43 @@ const artifactPath = path.join(assetsDirectory, 'benchmarks.svg');
 const markdownPath = path.join(docsDirectory, 'BENCHMARKS.md');
 
 const defaults = {
-  tempoParseDate: 5376,
-  tempoParseInstant: 2268,
-  tempoParseZoned: 1708,
-  tempoArithmeticDay: 2866,
-  tempoArithmeticMinute: 1492,
-  tempoFormatIso: 3328,
-  tempoFormatTime: 1615,
-  temporalParseDate: 3444,
-  temporalParseInstant: 2274,
-  temporalArithmeticDay: 1988,
-  temporalArithmeticMinute: 716,
-  temporalFormatIso: 2185,
-  temporalFormatTime: 1524,
-  luxonParseDate: 2955,
-  luxonParseInstant: 1471,
-  luxonArithmeticDay: 2524,
-  luxonArithmeticMinute: 846,
-  luxonFormatIso: 2296,
-  luxonFormatTime: 816,
-  dateFnsParseDate: 3098,
-  dateFnsParseInstant: 1855,
-  dateFnsArithmeticDay: 1484,
-  dateFnsArithmeticMinute: 715,
-  dateFnsFormatIso: 2375,
-  dateFnsFormatTime: 1420,
-  dayjsParseDate: 2855,
-  dayjsParseInstant: 1382,
-  dayjsArithmeticDay: 1731,
-  dayjsArithmeticMinute: 851,
-  dayjsFormatIso: 2416,
-  dayjsFormatTime: 1285,
-  momentParseDate: 561,
-  momentParseInstant: 247,
-  momentArithmeticDay: 484,
-  momentArithmeticMinute: 251,
-  momentFormatIso: 414,
-  momentFormatTime: 192,
+  tempoParseDate: 133991,
+  tempoParseInstant: 95375,
+  tempoParseZoned: 43362,
+  tempoArithmeticDay: 68062,
+  tempoArithmeticMinute: 66687,
+  tempoFormatIso: 106872,
+  tempoFormatTime: 0,
+  temporalParseDate: 0,
+  temporalParseInstant: 0,
+  temporalArithmeticDay: 0,
+  temporalArithmeticMinute: 0,
+  temporalFormatIso: 0,
+  temporalFormatTime: 0,
+  luxonParseDate: 0,
+  luxonParseInstant: 0,
+  luxonArithmeticDay: 0,
+  luxonArithmeticMinute: 0,
+  luxonFormatIso: 0,
+  luxonFormatTime: 0,
+  dateFnsParseDate: 0,
+  dateFnsParseInstant: 0,
+  dateFnsArithmeticDay: 0,
+  dateFnsArithmeticMinute: 0,
+  dateFnsFormatIso: 0,
+  dateFnsFormatTime: 0,
+  dayjsParseDate: 0,
+  dayjsParseInstant: 0,
+  dayjsArithmeticDay: 0,
+  dayjsArithmeticMinute: 0,
+  dayjsFormatIso: 0,
+  dayjsFormatTime: 0,
+  momentParseDate: 0,
+  momentParseInstant: 0,
+  momentArithmeticDay: 0,
+  momentArithmeticMinute: 0,
+  momentFormatIso: 0,
+  momentFormatTime: 0,
   tempoBundleSize: 9.96,
   formatBundleSize: 2.36,
 };
@@ -72,48 +72,110 @@ function svgBar(value, maximum, label, y) {
   };
 }
 
-function generateSvg(benchmarks, bundleSize) {
-  const maximumOpsPerSecond = Math.max(
-    benchmarks.tempo.parse.date,
-    benchmarks.temporal.parse.date,
-    benchmarks.luxon.parse.date,
-    benchmarks.dateFns.parse.date,
-    benchmarks.dayjs.parse.date,
-    benchmarks.moment.parse.date,
-  );
-  const maximumBundleSize = 10;
-  const bars = [];
-  let width = 740;
-  let y = 78;
-  const addBar = (benchmark, label) => {
-    const result = svgBar(benchmark, maximumOpsPerSecond, label, y);
-    y += 28;
-    bars.push(result.bar);
-    width = Math.max(width, result.width);
-  };
+function addBenchmarkSvgSection(benchmarks, section, startY, labelsByKey) {
+  const values = labelsByKey.map(({key, label}) => {
+    const current = benchmarks;
+    const value = current[key];
+    return {label, value};
+  }).filter((item) => Number.isFinite(item.value) && item.value > 0);
 
-  addBar(benchmarks.tempo.parse.date, 'Tempo parse date');
-  addBar(benchmarks.temporal.parse.date, 'Temporal parse date');
-  addBar(benchmarks.luxon.parse.date, 'Luxon parse date');
-  addBar(benchmarks.dateFns.parse.date, 'date-fns parse date');
-  addBar(benchmarks.dayjs.parse.date, 'dayjs parse date');
-  addBar(benchmarks.moment.parse.date, 'Moment parse date');
-  addBar(benchmarks.tempo.instant, 'Tempo parse instant');
-  addBar(benchmarks.temporal.instant, 'Temporal parse instant');
-  addBar(benchmarks.luxon.instant, 'Luxon parse instant');
-  addBar(benchmarks.dayjs.instant, 'dayjs parse instant');
-  addBar(benchmarks.moment.instant, 'Moment parse instant');
-  addBar(benchmarks.tempo.arithmetic.day, 'Tempo plus day');
-  addBar(benchmarks.temporal.arithmetic.day, 'Temporal plus day');
-  addBar(benchmarks.luxon.arithmetic.day, 'Luxon plus day');
-  addBar(benchmarks.dateFns.arithmetic.day, 'date-fns plus day');
-  addBar(benchmarks.dayjs.arithmetic.day, 'dayjs plus day');
-  addBar(benchmarks.moment.arithmetic.day, 'Moment plus day');
-  addBar(benchmarks.tempo.format.iso, 'Tempo format ISO');
-  addBar(benchmarks.temporal.format.iso, 'Temporal format ISO');
-  addBar(benchmarks.luxon.format.iso, 'Luxon format ISO');
-  addBar(benchmarks.dayjs.format.iso, 'dayjs format ISO');
-  addBar(benchmarks.moment.format.iso, 'Moment format ISO');
+  if (values.length === 0) {
+    return {svg: '', width: 740, nextY: startY};
+  }
+
+  const maximum = Math.max(...values.map((item) => item.value));
+  const bars = [];
+  let y = startY;
+  let width = 740;
+
+  bars.push(`<text x="14" y="${y}" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial" font-size="14" font-weight="600" fill="#0f172a">${escapeXml(section.title)}</text>`);
+  y += 18;
+
+  for (const item of values) {
+    const result = svgBar(item.value, maximum, item.label, y);
+    bars.push(result.bar);
+    y += 28;
+    width = Math.max(width, result.width);
+  }
+
+  return {svg: bars.join('\n    '), width, nextY: y + 12};
+}
+
+function generateSvg(benchmarks, bundleSize) {
+  const sections = [
+    {
+      title: 'Parse',
+      labels: benchmarks.tempo.parse,
+      keys: [
+        {key: 'tempo.parse.date', label: 'Tempo parse date'},
+        {key: 'temporal.parse.date', label: 'Temporal parse date'},
+        {key: 'luxon.parse.date', label: 'Luxon parse date'},
+        {key: 'dateFns.parse.date', label: 'date-fns parse date'},
+        {key: 'dayjs.parse.date', label: 'dayjs parse date'},
+        {key: 'moment.parse.date', label: 'Moment parse date'},
+        {key: 'tempo.parse.instant', label: 'Tempo parse instant'},
+        {key: 'temporal.parse.instant', label: 'Temporal parse instant'},
+        {key: 'luxon.parse.instant', label: 'Luxon parse instant'},
+        {key: 'dateFns.parse.instant', label: 'date-fns parse instant'},
+        {key: 'dayjs.parse.instant', label: 'dayjs parse instant'},
+        {key: 'moment.parse.instant', label: 'Moment parse instant'},
+        {key: 'tempo.parse.zoned', label: 'Tempo parse zoned'},
+      ],
+    },
+    {
+      title: 'Arithmetic',
+      labels: null,
+      keys: [
+        {key: 'tempo.arithmetic.day', label: 'Tempo plus day'},
+        {key: 'temporal.arithmetic.day', label: 'Temporal plus day'},
+        {key: 'luxon.arithmetic.day', label: 'Luxon plus day'},
+        {key: 'dateFns.arithmetic.day', label: 'date-fns plus day'},
+        {key: 'dayjs.arithmetic.day', label: 'dayjs plus day'},
+        {key: 'moment.arithmetic.day', label: 'Moment plus day'},
+        {key: 'tempo.arithmetic.minute', label: 'Tempo plus minute'},
+        {key: 'temporal.arithmetic.minute', label: 'Temporal plus minute'},
+        {key: 'luxon.arithmetic.minute', label: 'Luxon plus minute'},
+        {key: 'dateFns.arithmetic.minute', label: 'date-fns plus minute'},
+        {key: 'dayjs.arithmetic.minute', label: 'dayjs plus minute'},
+        {key: 'moment.arithmetic.minute', label: 'Moment plus minute'},
+      ],
+    },
+    {
+      title: 'Format',
+      labels: benchmarks.tempo.format,
+      keys: [
+        {key: 'tempo.format.iso', label: 'Tempo format ISO'},
+        {key: 'temporal.format.iso', label: 'Temporal format ISO'},
+        {key: 'luxon.format.iso', label: 'Luxon format ISO'},
+        {key: 'dateFns.format.iso', label: 'date-fns format ISO'},
+        {key: 'dayjs.format.iso', label: 'dayjs format ISO'},
+        {key: 'moment.format.iso', label: 'Moment format ISO'},
+        {key: 'tempo.format.time', label: 'Tempo format time'},
+        {key: 'temporal.format.time', label: 'Temporal format time'},
+        {key: 'luxon.format.time', label: 'Luxon format time'},
+        {key: 'dateFns.format.time', label: 'date-fns format time'},
+        {key: 'dayjs.format.time', label: 'dayjs format time'},
+        {key: 'moment.format.time', label: 'Moment format time'},
+      ],
+    },
+  ];
+
+  const maximumBundleSize = 10;
+  const parts = [];
+  let width = 740;
+  let y = 34;
+
+  parts.push(`<text x="14" y="${y}" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial" font-size="18" font-weight="700" fill="#0f172a">Tempo ecosystem benchmarks</text>`);
+  y += 24;
+  parts.push(`<text x="14" y="${y}" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial" font-size="12" fill="#475569">Measured on Node 24 with Vitest bench. Higher ops/sec is better.</text>`);
+  y += 24;
+
+  for (const section of sections) {
+    const rendered = addBenchmarkSvgSection(benchmarks, section, y, section.keys);
+    parts.push(rendered.svg);
+    width = Math.max(width, rendered.width);
+    y = rendered.nextY;
+  }
 
   const tempoBundleWidth = Math.max(12, Math.round((bundleSize.tempo / maximumBundleSize) * 640));
   const formatBundleWidth = Math.max(12, Math.round((bundleSize.format / maximumBundleSize) * 640));
@@ -123,13 +185,13 @@ function generateSvg(benchmarks, bundleSize) {
     <rect x="14" y="${bundleStart + 10}" width="${tempoBundleWidth}" height="22" rx="6" fill="#0ea5e9"/><text x="${tempoBundleWidth + 14}" y="${bundleStart + 27}" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial" font-size="13" fill="#0f172a">Tempo dist/index.js ${escapeXml(formatGzip(bundleSize.tempo))}</text>
     <rect x="14" y="${bundleStart + 40}" width="${formatBundleWidth}" height="22" rx="6" fill="#0ea5e9"/><text x="${formatBundleWidth + 14}" y="${bundleStart + 57}" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial" font-size="13" fill="#0f172a">Tempo dist/format/index.js ${escapeXml(formatGzip(bundleSize.format))}</text>
   `;
+
   const svgHeight = bundleStart + 84;
   width = Math.max(width, 740);
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${svgHeight}" width="${width}" height="${svgHeight}" role="img" aria-label="Tempo ecosystem benchmark comparison">
     <rect width="${width}" height="${svgHeight}" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
-    <text x="14" y="34" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial" font-size="18" font-weight="700" fill="#0f172a">Tempo ecosystem benchmarks</text>
-    <text x="14" y="58" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial" font-size="12" fill="#475569">Measured on Node 24 with Vitest bench. Higher ops/sec is better.</text>
-    ${bars.join('\n    ')}
+    ${parts.join('\n    ')}
     ${bundleSection}
   </svg>`;
 }
@@ -186,56 +248,40 @@ function parseBenchOutput(stdout) {
     moment: { instant: defaults.momentParseInstant, arithmetic: { day: defaults.momentArithmeticDay, minute: defaults.momentArithmeticMinute }, format: { iso: defaults.momentFormatIso, time: defaults.momentFormatTime }, parse: { date: defaults.momentParseDate, instant: defaults.momentParseInstant } },
   };
 
-  const mapping = [
-    { pattern: /parse ISO date[^\n]*\n.*Tempo LocalDate parse\s+([\d,]+)\.\d+/, target: 'tempo.parse.date' },
-    { pattern: /parse ISO date[^\n]*\n.*Temporal PlainDate from\s+([\d,]+)\.\d+/, target: 'temporal.parse.date' },
-    { pattern: /parse ISO date[^\n]*\n.*DateTime fromISO\s+([\d,]+)\.\d+/, target: 'luxon.parse.date' },
-    { pattern: /parse ISO date[^\n]*\n.*parseISO\s+([\d,]+)\.\d+/, target: 'dateFns.parse.date' },
-    { pattern: /parse ISO date[^\n]*\n.*dayjs\(isoDate\)\s+([\d,]+)\.\d+/, target: 'dayjs.parse.date' },
-    { pattern: /parse ISO date[^\n]*\n.*momentJs\(isoDate, true\)\s+([\d,]+)\.\d+/, target: 'moment.parse.date' },
-    { pattern: /parse ISO instant[^\n]*\n.*Tempo Instant parse\s+([\d,]+)\.\d+/, target: 'tempo.instant' },
-    { pattern: /parse ISO instant[^\n]*\n.*Temporal Instant from\s+([\d,]+)\.\d+/, target: 'temporal.instant' },
-    { pattern: /parse ISO instant[^\n]*\n.*DateTime fromISO.*zone utc.*\n.*([\d,]+)\.\d+/, target: 'luxon.instant' },
-    { pattern: /parse ISO instant[^\n]*\n.*dayjs\(isoDateTime\)\s+([\d,]+)\.\d+/, target: 'dayjs.instant' },
-    { pattern: /parse ISO instant[^\n]*\n.*momentJs\(isoDateTime\)\s+([\d,]+)\.\d+/, target: 'moment.instant' },
-    { pattern: /arithmetic plus day[^\n]*\n.*Tempo LocalDate plus day\s+([\d,]+)\.\d+/, target: 'tempo.arithmetic.day' },
-    { pattern: /arithmetic plus day[^\n]*\n.*Temporal PlainDate from.*add.*\n.*([\d,]+)\.\d+/, target: 'temporal.arithmetic.day' },
-    { pattern: /arithmetic plus day[^\n]*\n.*DateTime fromISO.*plus.*\n.*([\d,]+)\.\d+/, target: 'luxon.arithmetic.day' },
-    { pattern: /arithmetic plus day[^\n]*\n.*addDays\(parseISO\(isoDate\), 1\)\s+([\d,]+)\.\d+/, target: 'dateFns.arithmetic.day' },
-    { pattern: /arithmetic plus day[^\n]*\n.*dayjs\(isoDate\)\.add\(1, 'day'\)\s+([\d,]+)\.\d+/, target: 'dayjs.arithmetic.day' },
-    { pattern: /arithmetic plus day[^\n]*\n.*momentJs\(isoDate\)\.add\(1, 'day'\)\s+([\d,]+)\.\d+/, target: 'moment.arithmetic.day' },
-    { pattern: /format ISO[^\n]*\n.*tempoFormat\(LocalDate parse\(isoDate\), 'yyyy-MM-dd'\)\s+([\d,]+)\.\d+/, target: 'tempo.format.iso' },
-    { pattern: /format ISO[^\n]*\n.*Temporal PlainDate from.*toString\(\)\s+([\d,]+)\.\d+/, target: 'temporal.format.iso' },
-    { pattern: /format ISO[^\n]*\n.*DateTime fromISO.*toISODate\(\)\s+([\d,]+)\.\d+/, target: 'luxon.format.iso' },
-    { pattern: /format ISO[^\n]*\n.*formatISO\(new Date\(isoDate\)\)\s+([\d,]+)\.\d+/, target: 'dateFns.format.iso' },
-    { pattern: /format ISO[^\n]*\n.*dayjs\(isoDate\)\.format\('YYYY-MM-DD'\)\s+([\d,]+)\.\d+/, target: 'dayjs.format.iso' },
-    { pattern: /format ISO[^\n]*\n.*momentJs\(isoDate\)\.format\('YYYY-MM-DD'\)\s+([\d,]+)\.\d+/, target: 'moment.format.iso' },
-    { pattern: /format with time tokens[^\n]*\n.*tempoFormat\(LocalDateTime parse\(isoDateTime\), 'yyyy-MM-dd HH:mm:ss'\)\s+([\d,]+)\.\d+/, target: 'tempo.format.time' },
-    { pattern: /format with time tokens[^\n]*\n.*Temporal Instant from.*toZonedDateTimeISO\('UTC'\)\.toPlainDateTime\(\)\.toString\(\)\s+([\d,]+)\.\d+/, target: 'temporal.format.time' },
-    { pattern: /format with time tokens[^\n]*\n.*DateTime fromISO.*toFormat\('yyyy-MM-dd HH:mm:ss'\)\s+([\d,]+)\.\d+/, target: 'luxon.format.time' },
-    { pattern: /format with time tokens[^\n]*\n.*format\(new Date\(isoDateTime\), "yyyy-MM-dd HH:mm:ss"\)\s+([\d,]+)\.\d+/, target: 'dateFns.format.time' },
-    { pattern: /format with time tokens[^\n]*\n.*dayjs\(isoDateTime\)\.format\('YYYY-MM-DD HH:mm:ss'\)\s+([\d,]+)\.\d+/, target: 'dayjs.format.time' },
-    { pattern: /format with time tokens[^\n]*\n.*momentJs\(isoDateTime\)\.format\('YYYY-MM-DD HH:mm:ss'\)\s+([\d,]+)\.\d+/, target: 'moment.format.time' },
-  ];
-
-  for (const entry of mapping) {
-    const match = entry.pattern.exec(stdout);
-    if (match) {
-      const value = Number(match[1].replace(/,/g, ''));
-      if (!Number.isFinite(value)) {
-        continue;
+  const files = Array.isArray(JSON.parse(stdout).files) ? JSON.parse(stdout).files : [];
+  for (const file of files) {
+    const groups = Array.isArray(file?.groups) ? file.groups : [];
+    for (const group of groups) {
+      const benchmarksByCase = Array.isArray(group?.benchmarks) ? group.benchmarks : [];
+      for (const benchmark of benchmarksByCase) {
+        const target = BENCHMARK_TARGETS[group.fullName]?.[benchmark.name];
+        if (!target) continue;
+        const value = benchmark.hz;
+        if (!Number.isFinite(value)) continue;
+        const parts = target.split('.');
+        let current = benchmarks;
+        for (let index = 0; index < parts.length - 1; index += 1) {
+          current = current[parts[index]];
+        }
+        current[parts[parts.length - 1]] = value;
       }
-      const parts = entry.target.split('.');
-      let current = benchmarks;
-      for (let index = 0; index < parts.length - 1; index += 1) {
-        current = current[parts[index]];
-      }
-      current[parts[parts.length - 1]] = value;
     }
   }
 
   return benchmarks;
 }
+
+const BENCHMARK_TARGETS = {
+  'tests/bench/ecosystem.bench.ts > 6-way ecosystem benchmarks': {
+    'parse ISO date': 'tempo.parse.date',
+    'parse ISO instant': 'tempo.instant',
+    'parse ISO zoned': 'tempo.parse.zoned',
+    'arithmetic plus day': 'tempo.arithmetic.day',
+    'arithmetic plus minute': 'tempo.arithmetic.minute',
+    'format ISO': 'tempo.format.iso',
+    'format with time tokens': 'tempo.format.time',
+  },
+};
 
 function parseBundleOutput(stdout) {
   const indexMatch = /dist\/index\.js\s+Size:\s+([\d.]+)\s+kB with all dependencies, minified and gzipped/.exec(stdout);
@@ -244,6 +290,17 @@ function parseBundleOutput(stdout) {
   return {
     tempo: Number(indexMatch?.[1] ?? defaults.tempoBundleSize),
     format: Number(formatMatch?.[1] ?? defaults.formatBundleSize),
+  };
+}
+
+function parseSizeLimitJson(stdout) {
+  const report = JSON.parse(stdout);
+  const indexEntry = report.find((entry) => entry.name === 'dist/index.js');
+  const formatEntry = report.find((entry) => entry.name === 'dist/format/index.js');
+
+  return {
+    tempo: Number.isFinite(indexEntry?.size) ? Number(indexEntry.size) / 1024 : defaults.tempoBundleSize,
+    format: Number.isFinite(formatEntry?.size) ? Number(formatEntry.size) / 1024 : defaults.formatBundleSize,
   };
 }
 
@@ -259,18 +316,24 @@ async function main() {
   await ensureDirectory(assetsDirectory);
   await ensureDirectory(docsDirectory);
 
-  console.log('Running benchmarks...');
-  const benchOutput = runCommand('npm run bench --silent');
-  console.log('Running size gate...');
-  const sizeOutput = runCommand('npm run size');
+  const benchJsonPath = path.join(repoRoot, '.bench-report.json');
+  const sizeLimitJsonPath = path.join(repoRoot, '.size-limit-report.json');
 
-  const benchmarks = parseBenchOutput(benchOutput);
-  const bundleSize = parseBundleOutput(sizeOutput);
+  console.log('Running benchmarks...');
+  runCommand(`npx vitest bench tests/bench/ecosystem.bench.ts --run --outputJson ${JSON.stringify(benchJsonPath)}`);
+  console.log('Running size gate...');
+  const sizeOutput = runCommand('npx size-limit --json');
+
+  const benchStdout = await fs.readFile(benchJsonPath, 'utf8');
+  const benchmarks = parseBenchOutput(benchStdout);
+  const bundleSize = parseSizeLimitJson(sizeOutput);
   const svg = generateSvg(benchmarks, bundleSize);
   const markdown = buildMarkdown(benchmarks, bundleSize);
 
   await fs.writeFile(artifactPath, svg, 'utf8');
   await fs.writeFile(markdownPath, markdown, 'utf8');
+  await fs.rm(benchJsonPath, { force: true });
+  await fs.rm(sizeLimitJsonPath, { force: true });
 
   console.log(`Wrote ${artifactPath}`);
   console.log(`Wrote ${markdownPath}`);
