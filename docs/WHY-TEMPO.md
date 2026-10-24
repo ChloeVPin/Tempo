@@ -6,7 +6,7 @@ Most JavaScript date bugs come from one mistake: treating time as a single numbe
 
 | Failure mode | Reproduces with |
 |---|---|
-| Midnight shift | `2026-03-08` in `America/New_York` |
+| Midnight shift | `2018-11-04` in `America/Sao_Paulo` |
 | Month-end overflow | Adding 1 month to January 31st |
 | Week-year error | Formatting early January with `YYYY` |
 
@@ -57,22 +57,22 @@ new Date('2018-11-04T03:00:00-03:00').toISOString();
 
 // @formkit/tempo
 import * as t from '@formkit/tempo';
-t.addMonth(t.date('2018-11-04T03:00:00-03:00'), 1).toISOString();
-// => 2018-12-04T02:00:00.000Z
+t.addMonth(t.date('2018-11-04T03:00:00-03:00'), 1).toISOString().slice(0, 10);
+// => '2018-12-04'
 
 // Moment
 import moment from 'moment';
 import 'moment-timezone';
 moment.tz('2018-11-04', 'America/Sao_Paulo').format();
-// => 2018-11-04T00:00:00-03:00
+// => '2018-11-04T01:00:00-02:00'
 
 // Tempo
-import { ZonedDateTime } from '@chloevpin/tempo';
+import { ZonedDateTime, LocalDateTime } from '@chloevpin/tempo';
 ZonedDateTime.parse('2018-11-04T00:00:00-03:00[America/Sao_Paulo]').toISO();
-// => 2018-11-04T00:00:00-03:00[America/Sao_Paulo]
+// => '2018-11-04T01:00:00-02:00[America/Sao_Paulo]'
 // A missing local time must be resolved explicitly:
-ZonedDateTime.fromLocal(LocalDateTime.of(2018, 11, 4, 1, 30), 'America/Sao_Paulo', { disambiguation: 'later' }).toISO();
-// => '2018-11-04T03:00:00-02:00[America/Sao_Paulo]'
+ZonedDateTime.fromLocal(LocalDateTime.of(2018, 11, 4, 0, 30), 'America/Sao_Paulo', { disambiguation: 'later' }).toISO();
+// => '2018-11-04T01:30:00-02:00[America/Sao_Paulo]'
 ```
 
 ### Why it happens
@@ -103,8 +103,8 @@ moment('2026-01-31').add(1, 'month').format('YYYY-MM-DD');
 
 // @formkit/tempo
 import * as t from '@formkit/tempo';
-t.date('2026-01-31').addMonth(1).toISO();
-// => '2026-03-03'
+t.addMonth(t.date('2026-01-31'), 1).toISOString();
+// => '2026-02-28'
 
 // Tempo
 import { LocalDate } from '@chloevpin/tempo';
