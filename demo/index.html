@@ -65,6 +65,52 @@
           </div>
         </div>
       </section>
+
+      <section class="panel panel--wide">
+        <h2>DST Timeline Simulator</h2>
+        <p class="field-hint">Scrub through America/New_York spring-forward and fall-back to see how Tempo resolves ambiguous and skipped local times.</p>
+        <div class="dst-controls">
+          <label class="field field--compact">
+            <span>Mode</span>
+            <div class="radio-row" role="group" aria-label="Disambiguation policy">
+              <label class="radio"><input type="radio" name="disambiguation" value="compatible" checked /> compatible</label>
+              <label class="radio"><input type="radio" name="disambiguation" value="earlier" /> earlier</label>
+              <label class="radio"><input type="radio" name="disambiguation" value="later" /> later</label>
+              <label class="radio"><input type="radio" name="disambiguation" value="reject" /> reject</label>
+            </div>
+          </label>
+          <label class="field field--compact">
+            <span>Transition</span>
+            <select id="dst-transition">
+              <option value="spring">Spring-forward — 2026-03-08</option>
+              <option value="fall">Fall-back — 2026-11-01</option>
+            </select>
+          </label>
+          <label class="field field--compact">
+            <span>Local time</span>
+            <input id="dst-local-time" type="text" value="2026-03-08T02:30:00" spellcheck="false" autocomplete="off" />
+          </label>
+          <label class="field field--compact">
+            <span>Timeline</span>
+            <input id="dst-slider" type="range" min="0" max="720" value="150" step="1" />
+            <output id="dst-slider-output">02:30</output>
+          </label>
+        </div>
+        <div class="dst-results">
+          <article class="result-card">
+            <h3>Resolved instant</h3>
+            <pre id="dst-instant-output" class="mono"></pre>
+          </article>
+          <article class="result-card">
+            <h3>Local result</h3>
+            <pre id="dst-local-output" class="mono"></pre>
+          </article>
+          <article class="result-card">
+            <h3>Policy note</h3>
+            <pre id="dst-note-output" class="mono"></pre>
+          </article>
+        </div>
+      </section>
     </main>
 
     <script type="module" src="/src/main.ts"></script>

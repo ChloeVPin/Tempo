@@ -110,7 +110,7 @@ function renderTypeExplorer(iso: string) {
   if (zdt) {
     const localDateTime = zdt.toLocalDateTime();
     const localTime = zdt.toLocalTime();
-    const pattern = "yyyy-MM-dd HH:mm:ss.SSS XXX";
+    const pattern = "yyyy-MM-dd HH:mm:ss.SSS";
     localDateTimeOutput!.textContent = [
       `toISO(): ${localDateTime.toISO()}`,
       `formatted: ${format(localDateTime, pattern)}`,

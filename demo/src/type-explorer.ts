@@ -38,7 +38,7 @@ function update() {
     return;
   }
 
-  const localTime = localDateTime.toLocalTime();
+  const localTime = localDateTime.time;
 
   localDateTimeOutput!.textContent = [
     `toISO(): ${localDateTime.toISO()}`,
