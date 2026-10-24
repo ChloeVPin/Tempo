@@ -74,8 +74,7 @@ function svgBar(value, maximum, label, y) {
 
 function addBenchmarkSvgSection(benchmarks, section, startY, labelsByKey) {
   const values = labelsByKey.map(({key, label}) => {
-    const current = benchmarks;
-    const value = current[key];
+    const value = key.split('.').reduce((acc, k) => acc?.[k], benchmarks);
     return {label, value};
   }).filter((item) => Number.isFinite(item.value) && item.value > 0);
 
@@ -199,9 +198,12 @@ function generateSvg(benchmarks, bundleSize) {
 function buildMarkdown(benchmarks, bundleSize) {
   const rows = [
     { case: 'Parse ISO date', tempo: benchmarks.tempo.parse.date, temporal: benchmarks.temporal.parse.date, luxon: benchmarks.luxon.parse.date, dateFns: benchmarks.dateFns.parse.date, dayjs: benchmarks.dayjs.parse.date, moment: benchmarks.moment.parse.date },
-    { case: 'Parse ISO instant', tempo: benchmarks.tempo.instant, temporal: benchmarks.temporal.instant, luxon: benchmarks.luxon.instant, dateFns: benchmarks.dateFns.instant, dayjs: benchmarks.dayjs.instant, moment: benchmarks.moment.instant },
+    { case: 'Parse ISO instant', tempo: benchmarks.tempo.parse.instant, temporal: benchmarks.temporal.parse.instant, luxon: benchmarks.luxon.parse.instant, dateFns: benchmarks.dateFns.parse.instant, dayjs: benchmarks.dayjs.parse.instant, moment: benchmarks.moment.parse.instant },
+    { case: 'Parse ISO zoned', tempo: benchmarks.tempo.parse.zoned, temporal: benchmarks.temporal.parse.zoned, luxon: benchmarks.luxon.parse.zoned, dateFns: benchmarks.dateFns.parse.zoned, dayjs: benchmarks.dayjs.parse.zoned, moment: benchmarks.moment.parse.zoned },
     { case: 'Plus day', tempo: benchmarks.tempo.arithmetic.day, temporal: benchmarks.temporal.arithmetic.day, luxon: benchmarks.luxon.arithmetic.day, dateFns: benchmarks.dateFns.arithmetic.day, dayjs: benchmarks.dayjs.arithmetic.day, moment: benchmarks.moment.arithmetic.day },
+    { case: 'Plus minute', tempo: benchmarks.tempo.arithmetic.minute, temporal: benchmarks.temporal.arithmetic.minute, luxon: benchmarks.luxon.arithmetic.minute, dateFns: benchmarks.dateFns.arithmetic.minute, dayjs: benchmarks.dayjs.arithmetic.minute, moment: benchmarks.moment.arithmetic.minute },
     { case: 'Format ISO', tempo: benchmarks.tempo.format.iso, temporal: benchmarks.temporal.format.iso, luxon: benchmarks.luxon.format.iso, dateFns: benchmarks.dateFns.format.iso, dayjs: benchmarks.dayjs.format.iso, moment: benchmarks.moment.format.iso },
+    { case: 'Format with time tokens', tempo: benchmarks.tempo.format.time, temporal: benchmarks.temporal.format.time, luxon: benchmarks.luxon.format.time, dateFns: benchmarks.dateFns.format.time, dayjs: benchmarks.dayjs.format.time, moment: benchmarks.moment.format.time },
   ];
 
   const lines = [
@@ -259,11 +261,11 @@ function parseBenchOutput(stdout) {
         const value = benchmark.hz;
         if (!Number.isFinite(value)) continue;
         const parts = target.split('.');
-        let current = benchmarks;
-        for (let index = 0; index < parts.length - 1; index += 1) {
-          current = current[parts[index]];
-        }
-        current[parts[parts.length - 1]] = value;
+        const leaf = parts.pop();
+        if (!leaf) continue;
+        const current = parts.reduce((acc, k) => acc?.[k], benchmarks);
+        if (!current || !(leaf in current)) continue;
+        current[leaf] = value;
       }
     }
   }
