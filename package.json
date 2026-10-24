@@ -74,7 +74,9 @@
     "format:check": "prettier --check .",
     "size": "npm run build && size-limit",
     "bench": "vitest bench --run",
-    "test:mutation": "stryker run"
+    "test:mutation": "stryker run",
+    "generate:bench:artifacts": "node scripts/generate-bench-artifacts.mjs",
+    "bench:artifacts": "npm run bench --silent && npm run generate:bench:artifacts"
   },
   "repository": {
     "type": "git",
