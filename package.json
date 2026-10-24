@@ -62,8 +62,11 @@
   },
   "scripts": {
     "build": "tsup",
+    "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "pretypecheck": "npm run build",
+    "pretest:coverage": "npm run build",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
