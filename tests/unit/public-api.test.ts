@@ -52,7 +52,13 @@ describe('public API exports', () => {
   });
 
   it('freezes the documented subpath exports', () => {
-    expect(runtimeExports(Format)).toEqual(['clearFormatCache', 'createLocalDateParser', 'format', 'tokenize']);
+    expect(runtimeExports(Format)).toEqual([
+      'clearFormatCache',
+      'createLocalDateParser',
+      'format',
+      'registerLocalDateParser',
+      'tokenize',
+    ]);
     expect(runtimeExports(IntlEntry)).toEqual([
       'clearIntlCache',
       'getDateTimeFormat',

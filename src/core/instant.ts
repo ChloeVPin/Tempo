@@ -1,15 +1,17 @@
 import { nowMs } from '../clock.js';
 import { TempoError, type ParseResult, unwrapParse } from '../errors.js';
-import type { DurationLike, RoundingMode, TimeUnit } from '../types.js';
+import type { DurationLike, TimeUnit } from '../types.js';
 import type { ZonedDateTime } from '../tz/zoned-datetime.js';
 import { Duration } from './duration.js';
 import {
+  applyRoundingMode,
   isEpochMillisInRange,
   MILLIS_PER_HOUR,
   MILLIS_PER_MINUTE,
   MILLIS_PER_SECOND,
   MIN_EPOCH_MILLIS,
   MAX_EPOCH_MILLIS,
+  roundingUnitDivisor,
 } from './range.js';
 
 export class Instant {
@@ -116,25 +118,15 @@ export class Instant {
         input: unit,
       });
     }
-    const divisor = unitDivisor(unit);
+    const mode = options.roundingMode ?? 'halfExpand';
+    if (!ROUNDING_MODES.includes(mode)) {
+      throw new TempoError('INVALID_ROUNDING_MODE', `Unsupported rounding mode ${mode}`, { input: mode });
+    }
+    const divisor = roundingUnitDivisor(unit);
     const remainder = this.epochMillis % divisor;
     let rounded = this.epochMillis - remainder;
     if (remainder !== 0) {
-      const mode = options.roundingMode ?? 'halfExpand';
-      let adjustment = 0;
-      if (mode === 'halfExpand') {
-        const half = divisor / 2;
-        adjustment = remainder > 0 && remainder >= half ? divisor : remainder < 0 && remainder <= -half ? -divisor : 0;
-      } else if (mode === 'ceil') {
-        adjustment = remainder > 0 ? divisor : 0;
-      } else if (mode === 'floor') {
-        adjustment = remainder < 0 ? -divisor : 0;
-      } else if (mode === 'trunc') {
-        adjustment = 0;
-      } else {
-        throw new TempoError('INVALID_ROUNDING_MODE', `Unsupported rounding mode ${mode}`, { input: mode });
-      }
-      rounded += adjustment;
+      rounded += applyRoundingMode(divisor, remainder, mode);
     }
     if (rounded < MIN_EPOCH_MILLIS || rounded > MAX_EPOCH_MILLIS) {
       throw new TempoError('OUT_OF_RANGE', `Rounded instant ${rounded} is outside the supported range`, {
@@ -214,19 +206,6 @@ function zonedFromInstant(instant: Instant, timeZone: string): ZonedDateTime {
     throw new TempoError('UNKNOWN_TIMEZONE', 'ZonedDateTime module is not loaded');
   }
   return zonedFactory(instant, timeZone);
-}
-
-function unitDivisor(unit: TimeUnit): number {
-  switch (unit) {
-    case 'hour':
-      return MILLIS_PER_HOUR;
-    case 'minute':
-      return MILLIS_PER_MINUTE;
-    case 'second':
-      return MILLIS_PER_SECOND;
-    case 'millisecond':
-      return 1;
-  }
 }
 
 function parseInstant(input: string): ParseResult<Instant> {

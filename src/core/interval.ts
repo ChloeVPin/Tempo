@@ -1,6 +1,8 @@
 import { TempoError } from '../errors.js';
 import { Duration } from './duration.js';
+import { Instant, utcMillis } from './instant.js';
 import { LocalDate } from './local-date.js';
+import { LocalDateTime } from './local-datetime.js';
 import type { DateUnit, DurationLike } from '../types.js';
 
 export interface IntervalEndpoint<T> {
@@ -142,6 +144,9 @@ function currentPlus<T extends IntervalEndpoint<T>>(current: T, step: Duration):
   if (current instanceof LocalDate) {
     return current.plus(step) as unknown as T;
   }
+  if (current instanceof Instant) {
+    return advanceInstantCalendar(current, step) as unknown as T;
+  }
   if (current instanceof Date) {
     return new Date(current.getTime() + step.total('millisecond')) as unknown as T;
   }
@@ -171,6 +176,12 @@ function advanceByUnit<T extends IntervalEndpoint<T>>(current: T, unit: DateUnit
   if (current instanceof LocalDate) {
     return current.plus(step) as unknown as T;
   }
+  if (current instanceof Instant) {
+    return advanceInstantCalendar(current, step) as unknown as T;
+  }
+  if (current instanceof LocalDateTime) {
+    return current.plus(step) as unknown as T;
+  }
   if (current instanceof Date) {
     const milliseconds =
       unit === 'year'
@@ -188,4 +199,25 @@ function advanceByUnit<T extends IntervalEndpoint<T>>(current: T, unit: DateUnit
   throw new TempoError('INCOMPATIBLE_UNIT', 'Interval iteration requires an advanceable endpoint', {
     input: current,
   });
+}
+
+function advanceInstantCalendar(instant: Instant, step: Duration): Instant {
+  const date = new Date(instant.epochMillis);
+  const local = LocalDateTime.of(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + 1,
+    date.getUTCDate(),
+    date.getUTCHours(),
+    date.getUTCMinutes(),
+    date.getUTCSeconds(),
+    date.getUTCMilliseconds(),
+  );
+  const advanced = local.plus(step);
+  const ms = utcMillis(advanced.year, advanced.month, advanced.day, advanced.hour, advanced.minute, advanced.second, advanced.millisecond);
+  if (ms === null) {
+    throw new TempoError('OUT_OF_RANGE', 'Instant calendar step produced invalid UTC fields', {
+      input: instant,
+    });
+  }
+  return Instant.ofEpochMillis(ms);
 }

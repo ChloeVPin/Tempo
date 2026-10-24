@@ -117,6 +117,48 @@ const dates = DateRange.of(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 8));
 
 `Interval.of` throws `INVALID_INTERVAL` when `end` precedes `start` or endpoints cannot be ordered.
 
+## Interval iteration
+
+```ts
+const byDay = [...interval.by('day')];
+const monthIter = interval.iterate({ months: 1 });
+const subIntervals = interval.split({ days: 2 });
+```
+
+`by('day' | 'week' | 'month' | 'year')` yields each endpoint starting at `start`. For `Instant`, month/year steps use the UTC calendar projection from the current local date and time; empty intervals yield nothing.
+
+`iterate(step)` advances by `DurationLike` and yields each endpoint from `start`. `split(step)` returns an array of consecutive half-open sub-intervals covering the original range. Both throw `INVALID_INTERVAL` for zero or negative steps and preserve the original interval.
+
+## Rounding
+
+```ts
+Instant.parse('2026-06-01T12:34:36Z').round({ smallestUnit: 'minute' }).toISO();
+// '2026-06-01T12:35:00.000Z'
+
+LocalTime.parse('09:30:45.500').round({ smallestUnit: 'minute', roundingMode: 'floor' }).toISO();
+// '09:30:00.000'
+```
+
+`Instant.round` and `LocalTime.round` support `smallestUnit` of `hour`, `minute`, `second`, or `millisecond` with `roundingMode` of `halfExpand` (default), `ceil`, `floor`, or `trunc`. Instants validate the rounded epoch milliseconds against the supported range; `LocalTime` normalizes day wrap-around.
+
+## Relative time
+
+```ts
+import { fromNow, relativeTime } from '@chloevpin/tempo/relative';
+fromNow(instant, { locale: 'en' })
+```
+
+## Duration list formatting
+
+```ts
+import { formatDurationList } from '@chloevpin/tempo/relative';
+
+formatDurationList({ hours: 3, minutes: 4 }, { locale: 'en' });
+// '3 hours and 4 minutes'
+```
+
+`formatDurationList` joins duration components using `Intl.ListFormat`. The style and locale options follow the underlying formatter defaults.
+
 ## Overflow
 
 `constrain` (default for `plus` / `with`) clamps the day into the target month.
@@ -139,13 +181,6 @@ toLocaleString(date, 'fr-FR', { dateStyle: 'full' })
 ```
 
 Tokens: `yyyy MM dd HH hh mm ss SSS a XXX zzzz EEEE MMMM`. Not Moment’s `YYYY`/`DD`. Use the compat adapter for those.
-
-## Relative time
-
-```ts
-import { fromNow, relativeTime } from '@chloevpin/tempo/relative';
-fromNow(instant, { locale: 'en' })
-```
 
 ## Moment adapter
 

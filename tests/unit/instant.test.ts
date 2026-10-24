@@ -4,7 +4,36 @@ import { TempoError } from '../../src/errors.js';
 import type { RoundingMode, TimeUnit } from '../../src/types.js';
 
 describe('Instant', () => {
-  // existing tests unchanged ...
+  it('parses RFC 3339 instants with offset normalization', () => {
+    const instant = Instant.parse('2026-06-01T12:00:00Z');
+    expect(instant.toISO()).toBe('2026-06-01T12:00:00.000Z');
+    expect(Instant.parse('2026-06-01T14:00:00+02:00').equals(instant)).toBe(true);
+  });
+
+  it('rejects malformed input and missing offsets', () => {
+    expect(() => Instant.parse('2026-06-01T12:00:00')).toThrow(TempoError);
+    expect(() => Instant.parse('not a date')).toThrow(TempoError);
+  });
+
+  it('adds time-unit durations and rejects calendar units', () => {
+    const instant = Instant.parse('2026-06-01T00:00:00Z');
+    expect(instant.plus({ hours: 2 }).toISO()).toBe('2026-06-01T02:00:00.000Z');
+    expect(() => instant.plus({ months: 1 })).toThrow(TempoError);
+  });
+
+  it('round-trips through Date without losing epoch millis', () => {
+    const instant = Instant.ofEpochMillis(1_714_000_000_000);
+    expect(Instant.fromJSDate(instant.toJSDate()).equals(instant)).toBe(true);
+  });
+
+  it('orders instants with before/until assertions', () => {
+    const earlier = Instant.parse('2026-01-01T00:00:00Z');
+    const later = Instant.parse('2026-01-01T00:00:01Z');
+
+    expect(earlier.isBefore(later)).toBe(true);
+    expect(later.isAfter(earlier)).toBe(true);
+    expect(earlier.until(later, 'second')).toBe(1);
+  });
 
   describe('round', () => {
     it('rounds to the nearest minute with halfExpand by default', () => {

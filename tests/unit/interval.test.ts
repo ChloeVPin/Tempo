@@ -140,6 +140,51 @@ describe('Interval iteration', () => {
     ]);
   });
 
+  it('iterates Instant intervals by month using UTC calendar projection', () => {
+    const instantStart = Instant.parse('2026-06-01T00:00:00Z');
+    const instantEnd = instantStart.plus({ days: 92 });
+    const interval = Tempo.Interval.of(instantStart, instantEnd);
+    expect([...interval.by('month')]).toEqual([
+      instantStart,
+      Instant.parse('2026-07-01T00:00:00Z'),
+      Instant.parse('2026-08-01T00:00:00Z'),
+    ]);
+  });
+
+  it('iterates Instant intervals by year', () => {
+    const instantStart = Instant.parse('2026-02-01T00:00:00Z');
+    const instantEnd = Instant.parse('2029-02-01T00:00:00Z');
+    const interval = Tempo.Interval.of(instantStart, instantEnd);
+    expect([...interval.by('year')]).toEqual([
+      instantStart,
+      Instant.parse('2027-02-01T00:00:00Z'),
+      Instant.parse('2028-02-01T00:00:00Z'),
+    ]);
+  });
+
+  it('iterate yields month/year calendar steps for Instant', () => {
+    const instantStart = Instant.parse('2026-02-01T00:00:00Z');
+    const instantEnd = Instant.parse('2027-02-01T00:00:00Z');
+    const interval = Tempo.Interval.of(instantStart, instantEnd);
+    expect([...interval.iterate({ months: 1 })]).toEqual([
+      instantStart,
+      Instant.parse('2026-03-01T00:00:00Z'),
+      Instant.parse('2026-04-01T00:00:00Z'),
+      Instant.parse('2026-05-01T00:00:00Z'),
+      Instant.parse('2026-06-01T00:00:00Z'),
+      Instant.parse('2026-07-01T00:00:00Z'),
+      Instant.parse('2026-08-01T00:00:00Z'),
+      Instant.parse('2026-09-01T00:00:00Z'),
+      Instant.parse('2026-10-01T00:00:00Z'),
+      Instant.parse('2026-11-01T00:00:00Z'),
+      Instant.parse('2026-12-01T00:00:00Z'),
+      Instant.parse('2027-01-01T00:00:00Z'),
+    ]);
+    expect([...interval.iterate({ years: 1 })]).toEqual([
+      instantStart,
+    ]);
+  });
+
   it('yields nothing for empty LocalDate intervals', () => {
     const interval = Tempo.Interval.of(localStart, localStart);
     expect([...interval.by('day')]).toEqual([]);
@@ -169,6 +214,39 @@ describe('Interval iteration', () => {
       '2026-06-03',
       '2026-06-04',
       '2026-06-05',
+    ]);
+  });
+
+  it('splits Instant intervals by month using UTC calendar projection', () => {
+    const instantStart = Instant.parse('2026-06-01T00:00:00Z');
+    const instantEnd = Instant.parse('2026-09-01T00:00:00Z');
+    const interval = Tempo.Interval.of(instantStart, instantEnd);
+    const parts = interval.split({ months: 1 });
+
+    expect(parts).toHaveLength(3);
+    expect(parts.map((part) => part.start.toISO())).toEqual([
+      '2026-06-01T00:00:00.000Z',
+      '2026-07-01T00:00:00.000Z',
+      '2026-08-01T00:00:00.000Z',
+    ]);
+    expect(parts.map((part) => part.end.toISO())).toEqual([
+      '2026-07-01T00:00:00.000Z',
+      '2026-08-01T00:00:00.000Z',
+      '2026-09-01T00:00:00.000Z',
+    ]);
+  });
+
+  it('splits Instant intervals by year', () => {
+    const instantStart = Instant.parse('2026-01-01T00:00:00Z');
+    const instantEnd = Instant.parse('2029-01-01T00:00:00Z');
+    const interval = Tempo.Interval.of(instantStart, instantEnd);
+    const parts = interval.split({ years: 1 });
+
+    expect(parts).toHaveLength(3);
+    expect(parts.map((part) => part.start.toISO())).toEqual([
+      '2026-01-01T00:00:00.000Z',
+      '2027-01-01T00:00:00.000Z',
+      '2028-01-01T00:00:00.000Z',
     ]);
   });
 

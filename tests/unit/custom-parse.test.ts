@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LocalDate } from '../../src/core/local-date.js';
 import { TempoError } from '../../src/errors.js';
 import { format } from '../../src/format/format.js';
+import { createLocalDateParser, registerLocalDateParser } from '../../src/format/index.js';
 
 const parseWithPattern = (input: string, pattern: string): LocalDate => LocalDate.parse(input, pattern);
 
@@ -31,6 +32,25 @@ describe('custom LocalDate parsing', () => {
       parseWithPattern('31/02/2026', 'dd/MM/yyyy');
     } catch (error) {
       expect(error).toMatchObject({ code: 'INVALID_MONTH_DAY' });
+    }
+  });
+
+  it('restores distinct parser error codes for unregistered and malformed patterns', () => {
+    LocalDate.customPatternParser = null;
+    try {
+      try {
+        LocalDate.parse('01/06/2026', 'dd/MM/yyyy');
+      } catch (error) {
+        expect(error).toMatchObject({ code: 'INVALID_PARSE' });
+      }
+    } finally {
+      registerLocalDateParser(createLocalDateParser());
+    }
+
+    try {
+      LocalDate.parse('01/06/2026', 'EEEE dd/MM/yyyy');
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'INVALID_FORMAT' });
     }
   });
 });
