@@ -10,6 +10,7 @@
   },
   "files": [
     "dist",
+    "tools",
     "assets/logo.png",
     "README.md",
     "CHANGELOG.md",

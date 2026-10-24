@@ -79,6 +79,7 @@ describe('moment call codemod', () => {
     expect(result).toContain('LocalDate.parse');
     expect(result).not.toContain('ZonedDateTime');
     expect(result).toContain("import { LocalDate } from '@chloevpin/tempo';");
+    expect(result).toContain("yyyy-MM-dd \\'Z\\'");
   });
 
   it('maintains idempotency for warnings on repeated runs', async () => {
@@ -90,12 +91,9 @@ describe('moment call codemod', () => {
     expect(matches).toHaveLength(1);
   });
 
-  it('executes transformed format-local-date output against dist without throwing', async () => {
-    const { result } = await runTransform('format-local-date');
-    const executableCode = `${result.replace("const moment = require('moment');", '// moment unused')}\nif (iso !== '2026-01-01') throw new Error('mismatch: ' + iso);\n`;
-
-    const execResult = await new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
-      const child = spawn(process.execPath, ['--input-type=module', '-e', executableCode], { cwd: repoRoot });
+  const executeAgainstDist = async (code: string) => {
+    return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
+      const child = spawn(process.execPath, ['--input-type=module', '-e', code], { cwd: repoRoot });
       let stdout = '';
       let stderr = '';
       child.stdout.setEncoding('utf8');
@@ -105,7 +103,78 @@ describe('moment call codemod', () => {
       child.on('error', reject);
       child.on('close', (code) => resolve({ stdout, stderr, code: code ?? 0 }));
     });
+  };
 
+  it('executes transformed format-local-date output against dist without throwing', async () => {
+    const { result } = await runTransform('format-local-date');
+    const executableCode = `${result.replace("const moment = require('moment');", '// moment unused')}\nif (iso !== '2026-01-01') throw new Error('mismatch: ' + iso);\n`;
+    const execResult = await executeAgainstDist(executableCode);
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
+  });
+
+  it('executes transformed format-local-date-time output against dist without throwing', async () => {
+    const { result } = await runTransform('format-local-date-time');
+    const executableCode = `${result.replace("const moment = require('moment');", '// moment unused')}\nif (time !== '2026-01-01 00:00:00') throw new Error('mismatch: ' + time);\n`;
+    const execResult = await executeAgainstDist(executableCode);
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
+  });
+
+  it('executes transformed add output against dist without throwing', async () => {
+    const { result } = await runTransform('add');
+    const executableCode = `${result.replace("const moment = require('moment');", '// moment unused')}\nif (next !== '2026-01-02') throw new Error('mismatch: ' + next);\n`;
+    const execResult = await executeAgainstDist(executableCode);
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
+  });
+
+  it('executes transformed utc output against dist without throwing', async () => {
+    const { result } = await runTransform('utc');
+    const executableCode = `${result.replace("const moment = require('moment');", '// moment unused')}\nif (zoned !== '2026-01-01 00:00:00') throw new Error('mismatch: ' + zoned);\n`;
+    const execResult = await executeAgainstDist(executableCode);
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
+  });
+
+  it('executes transformed diff output against dist without throwing', async () => {
+    const { result } = await runTransform('diff');
+    const executableCode = `${result.replace("const moment = require('moment');", "import { moment } from '@chloevpin/tempo/compat/moment';")}\nif (delta !== 1) throw new Error('mismatch: ' + delta);\n`;
+    const execResult = await executeAgainstDist(executableCode);
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
+  });
+
+  it('executes transformed bracket escape pattern without syntax error against dist', async () => {
+    const transform = await createTransform();
+    const source = "const iso = moment('2026-01-01').format('YYYY-MM-DD [Z]');\n";
+    const result = transform({ source });
+    const executableCode = `${result}\nif (iso !== '2026-01-01 Z') throw new Error('mismatch: ' + iso);\n`;
+    const execResult = await executeAgainstDist(executableCode);
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
+  });
+
+  it('transforms empty pattern to .toISO() and executes against dist without throwing', async () => {
+    const transform = await createTransform();
+    const source = "const iso = moment('2026-01-01').format('');\n";
+    const result = transform({ source });
+    expect(result).toContain('.toISO()');
+    expect(result).not.toContain('.toISOString()');
+    const executableCode = `${result}\nif (iso !== '2026-01-01') throw new Error('mismatch: ' + iso);\n`;
+    const execResult = await executeAgainstDist(executableCode);
+    expect(execResult.code).toBe(0);
+    expect(execResult.stderr).toBe('');
+  });
+
+  it('transforms date-only utc() to combine and toZonedDateTime and executes against dist', async () => {
+    const transform = await createTransform();
+    const source = "const z = moment.utc('2026-01-01');\n";
+    const result = transform({ source });
+    expect(result).toContain('LocalDateTime.combine');
+    expect(result).toContain("toZonedDateTime('UTC')");
+    const executableCode = `${result}\nif (z.toISO() !== '2026-01-01T00:00:00+00:00[UTC]') throw new Error('mismatch: ' + z.toISO());\n`;
+    const execResult = await executeAgainstDist(executableCode);
     expect(execResult.code).toBe(0);
     expect(execResult.stderr).toBe('');
   });

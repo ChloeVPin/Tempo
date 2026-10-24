@@ -4,44 +4,11 @@ import ts from 'typescript';
 const parseSourceFile = (source) =>
   ts.createSourceFile('transform.ts', source, ts.ScriptTarget.Latest, true);
 
-const isMomentCall = (node) => {
-  if (!ts.isCallExpression(node)) return false;
-  const callee = node.expression;
-  if (ts.isIdentifier(callee)) {
-    return callee.text === 'moment';
-  }
-  if (ts.isPropertyAccessExpression(callee)) {
-    if (callee.name?.text !== 'utc') return false;
-    const base = callee.expression;
-    return (ts.isIdentifier(base) && base.text === 'moment') || isMomentCall(base);
-  }
-  return false;
-};
-
-const getNodeText = (node, sourceFile) => sourceFile.text.substring(node.getStart(sourceFile), node.getEnd(sourceFile));
+const getNodeText = (node, sourceFile) =>
+  sourceFile.text.substring(node.getStart(sourceFile), node.getEnd(sourceFile));
 
 const getLeadingTrivia = (node, magicString, sourceFile) =>
   magicString.slice(node.getFullStart(sourceFile), node.getStart(sourceFile));
-
-const extractStringArgument = (momentExpr, sourceFile) => {
-  if (!ts.isCallExpression(momentExpr)) {
-    return null;
-  }
-
-  if (momentExpr.arguments.length > 0) {
-    const arg = momentExpr.arguments[0];
-    return getNodeText(arg, sourceFile);
-  }
-
-  if (
-    ts.isPropertyAccessExpression(momentExpr.expression) &&
-    ts.isCallExpression(momentExpr.expression.expression)
-  ) {
-    return extractStringArgument(momentExpr.expression.expression, sourceFile);
-  }
-
-  return null;
-};
 
 const mapMomentPattern = (pattern) => {
   let out = '';
@@ -105,26 +72,8 @@ const matchToken = (rest) => {
 
 const quoteIfNeeded = (ch) => (/[A-Za-z]/.test(ch) ? `'${ch}'` : ch);
 
-const ensureImport = (state, importStatement) => {
-  if (state.source.includes(importStatement)) return;
-  state.addedImports.add(importStatement);
-};
-
-const selectTargetType = (pattern, parseArg, isUtc) => {
-  const unbracketed = pattern.replace(/\[[^\]]*\]/g, '');
-  const hasZoneToken = /[zZ]|XXX/.test(unbracketed);
-  const hasTimeToken = /[HhmsSaAk]/.test(unbracketed);
-  const cleanInput = parseArg ? parseArg.replace(/^['"`]|['"`]$/g, '').trim() : '';
-  const inputHasZoneOrOffset = isUtc || /(?:T|\s)\d{2}.*(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(cleanInput);
-
-  if (hasZoneToken || inputHasZoneOrOffset) {
-    return 'ZonedDateTime';
-  }
-  if (hasTimeToken) {
-    return 'LocalDateTime';
-  }
-  return 'LocalDate';
-};
+const escapePatternLiteral = (pattern) =>
+  pattern.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
 const UNIT_ALIASES = {
   d: 'days',
@@ -161,65 +110,192 @@ const replaceCall = (node, replacement, magicString, sourceFile) => {
   magicString.overwrite(node.getFullStart(sourceFile), node.getEnd(sourceFile), `${leading}${replacement}`);
 };
 
+const parseMomentChain = (node, sourceFile) => {
+  let current = node;
+  const operations = [];
+  let isUtc = false;
+
+  while (ts.isCallExpression(current)) {
+    const expr = current.expression;
+
+    // moment(...)
+    if (ts.isIdentifier(expr) && expr.text === 'moment') {
+      const argText = current.arguments.length > 0 ? getNodeText(current.arguments[0], sourceFile) : null;
+      const cleanArg =
+        current.arguments.length > 0 &&
+        (ts.isStringLiteral(current.arguments[0]) || ts.isNoSubstitutionTemplateLiteral(current.arguments[0]))
+          ? current.arguments[0].text
+          : (argText ? argText.replace(/^['"`]|['"`]$/g, '').trim() : null);
+      operations.reverse();
+      return { rootNode: current, isUtc, argText, cleanArg, operations };
+    }
+
+    // moment.utc(...)
+    if (
+      ts.isPropertyAccessExpression(expr) &&
+      expr.name?.text === 'utc' &&
+      ts.isIdentifier(expr.expression) &&
+      expr.expression.text === 'moment'
+    ) {
+      isUtc = true;
+      const argText = current.arguments.length > 0 ? getNodeText(current.arguments[0], sourceFile) : null;
+      const cleanArg =
+        current.arguments.length > 0 &&
+        (ts.isStringLiteral(current.arguments[0]) || ts.isNoSubstitutionTemplateLiteral(current.arguments[0]))
+          ? current.arguments[0].text
+          : (argText ? argText.replace(/^['"`]|['"`]$/g, '').trim() : null);
+      operations.reverse();
+      return { rootNode: current, isUtc, argText, cleanArg, operations };
+    }
+
+    // <chain>.utc()
+    if (ts.isPropertyAccessExpression(expr) && expr.name?.text === 'utc') {
+      isUtc = true;
+      current = expr.expression;
+      continue;
+    }
+
+    // <chain>.add(...) or <chain>.subtract(...)
+    if (
+      ts.isPropertyAccessExpression(expr) &&
+      (expr.name?.text === 'add' || expr.name?.text === 'subtract')
+    ) {
+      const methodName = expr.name.text;
+      const args = current.arguments;
+      if (args.length >= 1) {
+        const amount = getNodeText(args[0], sourceFile);
+        let unit = 'milliseconds';
+        if (args.length >= 2 && ts.isStringLiteral(args[1])) {
+          unit = normalizeUnit(args[1].text);
+        }
+        operations.push({ type: methodName, amount, unit });
+        current = expr.expression;
+        continue;
+      }
+    }
+
+    break;
+  }
+
+  return null;
+};
+
+const buildTempoChain = (chainInfo, options, state) => {
+  const { pattern = null, isUtc = chainInfo.isUtc } = options;
+
+  let requireZone = isUtc;
+  let requireTime = false;
+
+  if (pattern !== null) {
+    const unbracketed = pattern.replace(/\[[^\]]*\]/g, '');
+    if (/[zZ]|XXX/.test(unbracketed)) requireZone = true;
+    if (/[HhmsSaAk]/.test(unbracketed)) requireTime = true;
+  }
+
+  const cleanInput = chainInfo.cleanArg ?? '';
+  const inputHasZoneOrOffset =
+    isUtc ||
+    /(?:T|\s)\d{2}.*(?:Z|[+-]\d{2}(?::?\d{2})?)$/i.test(cleanInput) ||
+    cleanInput.includes('[');
+  const inputHasTime = /(?:T|\s)\d{2}:\d{2}/.test(cleanInput);
+  const inputIsDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(cleanInput);
+  const hasTimeOp = chainInfo.operations.some((op) =>
+    ['hours', 'minutes', 'seconds', 'milliseconds'].includes(op.unit)
+  );
+
+  let baseExpr;
+  const rawArg = chainInfo.argText;
+
+  if (requireZone || inputHasZoneOrOffset) {
+    if (!rawArg) {
+      baseExpr = "ZonedDateTime.now('UTC')";
+      state.tempoNamedImports.add('ZonedDateTime');
+    } else if (inputIsDateOnly) {
+      baseExpr = `LocalDateTime.combine(LocalDate.parse(${rawArg}), LocalTime.of(0, 0)).toZonedDateTime('UTC')`;
+      state.tempoNamedImports.add('LocalDate');
+      state.tempoNamedImports.add('LocalDateTime');
+      state.tempoNamedImports.add('LocalTime');
+    } else if (inputHasZoneOrOffset) {
+      baseExpr = `ZonedDateTime.parse(${rawArg})`;
+      state.tempoNamedImports.add('ZonedDateTime');
+    } else {
+      baseExpr = `LocalDateTime.parse(${rawArg}).toZonedDateTime('UTC')`;
+      state.tempoNamedImports.add('LocalDateTime');
+    }
+  } else if (requireTime || hasTimeOp || inputHasTime) {
+    if (!rawArg) {
+      baseExpr = 'LocalDateTime.now()';
+      state.tempoNamedImports.add('LocalDateTime');
+    } else if (inputIsDateOnly) {
+      baseExpr = `LocalDateTime.combine(LocalDate.parse(${rawArg}), LocalTime.of(0, 0))`;
+      state.tempoNamedImports.add('LocalDate');
+      state.tempoNamedImports.add('LocalDateTime');
+      state.tempoNamedImports.add('LocalTime');
+    } else {
+      baseExpr = `LocalDateTime.parse(${rawArg})`;
+      state.tempoNamedImports.add('LocalDateTime');
+    }
+  } else {
+    // Date-only
+    if (!rawArg) {
+      baseExpr = 'LocalDate.today()';
+      state.tempoNamedImports.add('LocalDate');
+    } else {
+      baseExpr = `LocalDate.parse(${rawArg})`;
+      state.tempoNamedImports.add('LocalDate');
+    }
+  }
+
+  let expr = baseExpr;
+  for (const op of chainInfo.operations) {
+    const methodName = op.type === 'add' ? 'plus' : 'minus';
+    expr = `${expr}.${methodName}({ ${op.unit}: ${op.amount} })`;
+  }
+
+  return expr;
+};
+
 const transformFormat = (callExpression, magicString, sourceFile, state) => {
   if (!ts.isCallExpression(callExpression)) return false;
   const receiver = callExpression.expression;
   if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'format') return false;
-  const momentExpr = receiver.expression;
-  if (!ts.isCallExpression(momentExpr)) return false;
 
-  const isUtcStatic =
-    ts.isPropertyAccessExpression(momentExpr.expression) &&
-    momentExpr.expression.name?.text === 'utc' &&
-    ts.isIdentifier(momentExpr.expression.expression) &&
-    momentExpr.expression.expression.text === 'moment';
-
-  const isUtcMethod =
-    ts.isPropertyAccessExpression(momentExpr.expression) &&
-    momentExpr.expression.name?.text === 'utc' &&
-    isMomentCall(momentExpr.expression.expression);
-
-  if (!isMomentCall(momentExpr) && !isUtcStatic && !isUtcMethod) return false;
+  const chainInfo = parseMomentChain(receiver.expression, sourceFile);
+  if (!chainInfo) return false;
 
   const args = callExpression.arguments;
-  if (args.length !== 1 || args[0].kind !== ts.SyntaxKind.StringLiteral) return false;
+  if (args.length !== 1 || (!ts.isStringLiteral(args[0]) && !ts.isNoSubstitutionTemplateLiteral(args[0]))) {
+    return false;
+  }
   const pattern = args[0].text;
 
   if (!pattern) {
-    replaceCall(callExpression, `${getNodeText(momentExpr, sourceFile)}.toISOString()`, magicString, sourceFile);
+    const targetExpr = buildTempoChain(chainInfo, { pattern: null }, state);
+    replaceCall(callExpression, `${targetExpr}.toISO()`, magicString, sourceFile);
     return true;
   }
 
-  const parseArg =
-    extractStringArgument(momentExpr, sourceFile) ??
-    (momentExpr.arguments.length > 0 ? getNodeText(momentExpr.arguments[0], sourceFile) : getNodeText(momentExpr, sourceFile));
-
-  const target = selectTargetType(pattern, parseArg, isUtcStatic || isUtcMethod);
+  const targetExpr = buildTempoChain(chainInfo, { pattern }, state);
   const mappedPattern = mapMomentPattern(pattern);
+  const escapedPattern = escapePatternLiteral(mappedPattern);
 
-  replaceCall(callExpression, `format(${target}.parse(${parseArg}), '${mappedPattern}')`, magicString, sourceFile);
-  ensureImport(state, `import { ${target} } from '@chloevpin/tempo';`);
-  ensureImport(state, "import { format } from '@chloevpin/tempo/format';");
+  replaceCall(callExpression, `format(${targetExpr}, '${escapedPattern}')`, magicString, sourceFile);
+  state.formatImport = true;
   return true;
 };
 
-const transformAdd = (callExpression, magicString, sourceFile) => {
+const transformAdd = (callExpression, magicString, sourceFile, state) => {
   if (!ts.isCallExpression(callExpression)) return false;
   const receiver = callExpression.expression;
-  if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'add') return false;
-  const momentExpr = receiver.expression;
-  if (!isMomentCall(momentExpr)) return false;
+  if (!ts.isPropertyAccessExpression(receiver)) return false;
+  const methodName = receiver.name?.text;
+  if (methodName !== 'add' && methodName !== 'subtract') return false;
 
-  const args = callExpression.arguments;
-  if (args.length < 1 || args[0].kind !== ts.SyntaxKind.NumericLiteral) return false;
+  const chainInfo = parseMomentChain(callExpression, sourceFile);
+  if (!chainInfo) return false;
 
-  const amount = args[0].text;
-  let unit = 'milliseconds';
-  if (args.length === 2 && args[1].kind === ts.SyntaxKind.StringLiteral) {
-    unit = normalizeUnit(args[1].text);
-  }
-
-  replaceCall(callExpression, `${getNodeText(momentExpr, sourceFile)}.plus({ ${unit}: ${amount} })`, magicString, sourceFile);
+  const replacement = buildTempoChain(chainInfo, { pattern: null }, state);
+  replaceCall(callExpression, replacement, magicString, sourceFile);
   return true;
 };
 
@@ -228,7 +304,7 @@ const transformDiff = (callExpression, magicString, sourceFile, state) => {
   const receiver = callExpression.expression;
   if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'diff') return false;
   const momentExpr = receiver.expression;
-  if (!isMomentCall(momentExpr)) return false;
+  if (!parseMomentChain(momentExpr, sourceFile)) return false;
 
   const warning = '/* TEMPO-CODEMOD: review diff semantics manually */\n';
   if (!state.source.includes(warning.trim())) {
@@ -243,26 +319,25 @@ const transformDiff = (callExpression, magicString, sourceFile, state) => {
 const transformUtc = (callExpression, magicString, sourceFile, state) => {
   if (!ts.isCallExpression(callExpression)) return false;
   const receiver = callExpression.expression;
-  if (!ts.isPropertyAccessExpression(receiver) || receiver.name?.text !== 'utc') return false;
-  const momentExpr = receiver.expression;
 
-  let parseArg = null;
-  if (ts.isIdentifier(momentExpr) && momentExpr.text === 'moment') {
-    parseArg = callExpression.arguments.length > 0 ? getNodeText(callExpression.arguments[0], sourceFile) : '';
-  } else if (isMomentCall(momentExpr)) {
-    parseArg =
-      extractStringArgument(momentExpr, sourceFile) ??
-      (momentExpr.arguments.length > 0 ? getNodeText(momentExpr.arguments[0], sourceFile) : '');
-  } else {
-    return false;
+  let chainInfo = null;
+  if (ts.isPropertyAccessExpression(receiver) && receiver.name?.text === 'utc') {
+    chainInfo = parseMomentChain(callExpression, sourceFile);
+  } else if (
+    ts.isPropertyAccessExpression(callExpression.expression) &&
+    callExpression.expression.name?.text === 'utc'
+  ) {
+    chainInfo = parseMomentChain(callExpression, sourceFile);
   }
 
-  replaceCall(callExpression, `ZonedDateTime.parse(${parseArg})`, magicString, sourceFile);
-  ensureImport(state, "import { ZonedDateTime } from '@chloevpin/tempo';");
+  if (!chainInfo) return false;
+
+  const replacement = buildTempoChain(chainInfo, { pattern: null, isUtc: true }, state);
+  replaceCall(callExpression, replacement, magicString, sourceFile);
   return true;
 };
 
-const CALL_TRANSFORMS = [transformFormat, transformAdd, transformDiff, transformUtc];
+const CALL_TRANSFORMS = [transformFormat, transformDiff, transformAdd, transformUtc];
 
 export default function transformFile({ source }) {
   const magicString = new MagicString(source);
@@ -270,7 +345,8 @@ export default function transformFile({ source }) {
   const state = {
     source,
     warnings: new Set(),
-    addedImports: new Set(),
+    tempoNamedImports: new Set(),
+    formatImport: false,
   };
 
   function visit(node) {
@@ -285,7 +361,22 @@ export default function transformFile({ source }) {
 
   visit(sourceFile);
 
-  if (state.addedImports.size > 0) {
+  const importLines = [];
+  if (state.tempoNamedImports.size > 0) {
+    const sorted = Array.from(state.tempoNamedImports).sort().join(', ');
+    const stmt = `import { ${sorted} } from '@chloevpin/tempo';`;
+    if (!source.includes(stmt)) {
+      importLines.push(stmt);
+    }
+  }
+  if (state.formatImport) {
+    const stmt = "import { format } from '@chloevpin/tempo/format';";
+    if (!source.includes(stmt)) {
+      importLines.push(stmt);
+    }
+  }
+
+  if (importLines.length > 0) {
     let insertPos = 0;
     for (const statement of sourceFile.statements) {
       const text = source.substring(statement.getStart(sourceFile), statement.getEnd(sourceFile));
@@ -296,7 +387,7 @@ export default function transformFile({ source }) {
       }
     }
 
-    const importsText = Array.from(state.addedImports).join('\n') + '\n';
+    const importsText = importLines.join('\n') + '\n';
     if (insertPos === 0) {
       const suffix = source.length > 0 && source[0] !== '\n' ? '\n' : '';
       magicString.prepend(`${importsText}${suffix}`);

@@ -35,12 +35,12 @@ export class MomentCompat {
     if (typeof input === 'string') {
       try {
         if (input.includes('[')) return new MomentCompat(ZonedDateTime.parse(input));
-        if (/[zZ]|[+-]\d{2}/u.test(input)) return new MomentCompat(ZonedDateTime.parse(input));
         if (/^\d{4}-\d{2}-\d{2}$/u.test(input)) {
           return new MomentCompat(
             ZonedDateTime.fromLocal(LocalDateTime.combine(LocalDate.parse(input)), timeZone),
           );
         }
+        if (/[zZ]|[+-]\d{2}/u.test(input)) return new MomentCompat(ZonedDateTime.parse(input));
         if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/u.test(input)) {
           return new MomentCompat(ZonedDateTime.fromLocal(LocalDateTime.parse(input), timeZone));
         }
