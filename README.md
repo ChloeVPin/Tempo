@@ -35,7 +35,7 @@ npm run typecheck
 npm run lint
 ```
 
-Additional size, benchmark, and mutation commands are listed in [package.json](package.json). Compatibility behavior and migration guidance are documented in [docs/MIGRATION.md](docs/MIGRATION.md).
+Additional size, benchmark, and mutation commands are listed in [package.json](package.json). Compatibility behavior and migration guidance are documented in [docs/MIGRATION.md](docs/MIGRATION.md). For a visual walkthrough of native `Date`, `@formkit/tempo`, Moment, and core Tempo failure modes, see [docs/WHY-TEMPO.md](docs/WHY-TEMPO.md).
 
 ## License
 
