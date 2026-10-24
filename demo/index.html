@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tempo Web Playground</title>
+    <link rel="stylesheet" href="/src/app.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Tempo Web Playground</h1>
+      <p class="subtitle">Live ISO parsing, format tokens, and DST type exploration</p>
+    </header>
+
+    <main class="grid">
+      <section class="panel">
+        <h2>ISO Parser</h2>
+        <label class="field">
+          <span>ISO input</span>
+          <input id="iso-input" type="text" value="2026-06-01T12:00:00-04:00[America/New_York]" spellcheck="false" autocomplete="off" />
+        </label>
+        <div class="result-grid">
+          <article class="result-card">
+            <h3>Instant</h3>
+            <pre id="instant-output" class="mono"></pre>
+          </article>
+          <article class="result-card">
+            <h3>LocalDate</h3>
+            <pre id="local-date-output" class="mono"></pre>
+          </article>
+          <article class="result-card">
+            <h3>ZonedDateTime</h3>
+            <pre id="zoned-output" class="mono"></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Format Token Preview</h2>
+        <label class="field">
+          <span>Value</span>
+          <input id="format-value" type="text" value="2026-06-01T12:34:56.789-04:00[America/New_York]" spellcheck="false" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Pattern</span>
+          <input id="format-pattern" type="text" value="yyyy-MM-dd 'at' HH:mm:ss.SSS XXX zzzz" spellcheck="false" autocomplete="off" />
+        </label>
+        <pre id="format-output" class="mono output-bar"></pre>
+      </section>
+
+      <section class="panel panel--wide">
+        <h2>Type Explorer</h2>
+        <div class="type-grid">
+          <div class="type-card">
+            <h3>LocalDateTime</h3>
+            <pre id="local-date-time-output" class="mono"></pre>
+          </div>
+          <div class="type-card">
+            <h3>LocalTime</h3>
+            <pre id="local-time-output" class="mono"></pre>
+          </div>
+          <div class="type-card">
+            <h3>Offset / DST</h3>
+            <pre id="offset-output" class="mono"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
