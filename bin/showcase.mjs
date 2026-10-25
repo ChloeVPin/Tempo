@@ -236,8 +236,8 @@ async function showLiveConversions() {
   out.write(` ${LINE}\n\n`);
   out.write(' Zone'.padEnd(12) + 'Local date/time'.padEnd(22) + 'Offset\n');
   for (const [zoneName, zdt] of zones) {
-    const local = zdt.withTimeZone('America/New_York');
-    out.write(`${tableCell(zoneName, 12)}${tableCell(format(local, 'yyyy-MM-dd HH:mm'), 22)}${format(local, 'XXX')}\n`);
+    const rendered = zdt.toISO();
+    out.write(`${tableCell(zoneName, 12)}${tableCell(rendered.slice(0, 16).replace('T', ' '), 22)}${rendered.slice(16)}\n`);
   }
   out.write(`\n ${LINE}\n`);
   out.write(` ${ok('Tempo applies IANA zone rules with immutable conversions.')}\n\n`);

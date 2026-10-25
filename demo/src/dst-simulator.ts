@@ -5,16 +5,14 @@ import {
   type Disambiguation,
 } from '@chloevpin/tempo';
 
-const TRANSITIONS: Record<string, { label: string; baseLocal: LocalDateTime; baseInstant: number }> = {
+const TRANSITIONS: Record<string, { label: string; baseLocal: LocalDateTime }> = {
   spring: {
     label: '2026-03-08 Spring-forward',
-    baseLocal: LocalDateTime.of(2026, 3, 8, 2, 0, 0),
-    baseInstant: 0,
+    baseLocal: LocalDateTime.of(2026, 3, 8, 1, 0, 0),
   },
   fall: {
     label: '2026-11-01 Fall-back',
     baseLocal: LocalDateTime.of(2026, 11, 1, 1, 0, 0),
-    baseInstant: 0,
   },
 };
 
@@ -54,6 +52,34 @@ function formatMinutes(minutes: number): string {
   return `${sign}${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 }
 
+function resolveWithPolicy(local: LocalDateTime, policy: Disambiguation) {
+  if (policy === 'reject') {
+    return { resolved: ZonedDateTime.fromLocal(local, 'America/New_York', { disambiguation: 'reject' }) };
+  }
+
+  const earlier = ZonedDateTime.fromLocal(local, 'America/New_York', { disambiguation: 'earlier' });
+  const later = ZonedDateTime.fromLocal(local, 'America/New_York', { disambiguation: 'later' });
+
+  if (earlier.epochMillis === later.epochMillis) {
+    return { resolved: earlier, earlier, later };
+  }
+
+  const earlierLocalShift = earlier.toLocalDateTime().minus(local).total('minute');
+  const laterLocalShift = later.toLocalDateTime().minus(local).total('minute');
+  const isLocalShiftForward = laterLocalShift > 0 && earlierLocalShift < 0;
+
+  if (policy === 'earlier') {
+    return { resolved: earlier, earlier, later };
+  }
+
+  if (policy === 'later') {
+    return { resolved: later, earlier, later };
+  }
+
+  const compatible = isLocalShiftForward ? later : earlier;
+  return { resolved: compatible, earlier, later };
+}
+
 function render() {
   const transition = transitionSelect?.value ?? 'spring';
   const policy = currentPolicy();
@@ -78,36 +104,23 @@ function render() {
     mode = 'slider';
   }
 
-  let instantNumber: number | null = null;
   let resolved: ZonedDateTime | null = null;
+  let earlier: ZonedDateTime | null = null;
+  let later: ZonedDateTime | null = null;
   let error: string | null = null;
-  let beforeOffset = '—';
-  let afterOffset = '—';
-  let beforeInstant: number | null = null;
-  let afterInstant: number | null = null;
-  let beforeLocal: LocalDateTime | null = null;
-  let afterLocal: LocalDateTime | null = null;
 
   try {
-    resolved = ZonedDateTime.fromLocal(local, 'America/New_York', { disambiguation: policy });
-    instantNumber = resolved.epochMillis;
-    const minuteBefore = local.plus({ minutes: -1 });
-    const minuteAfter = local.plus({ minutes: 1 });
-    const beforeZdt = ZonedDateTime.fromLocal(minuteBefore, 'America/New_York', { disambiguation: 'compatible' });
-    const afterZdt = ZonedDateTime.fromLocal(minuteAfter, 'America/New_York', { disambiguation: 'compatible' });
-    beforeOffset = format(beforeZdt, 'XXX');
-    afterOffset = format(afterZdt, 'XXX');
-    beforeInstant = beforeZdt.epochMillis;
-    afterInstant = afterZdt.epochMillis;
-    beforeLocal = minuteBefore;
-    afterLocal = minuteAfter;
+    const resolution = resolveWithPolicy(local, policy);
+    resolved = resolution.resolved;
+    earlier = resolution.earlier;
+    later = resolution.later;
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
 
-  const isTransition = (beforeOffset !== afterOffset);
-  const modeLabel = mode === 'manual' ? 'manual local input' : `${formatMinutes(minutes)} from transition start`;
   const transitionLabel = TRANSITIONS[transition]?.label ?? transition;
+  const modeLabel = mode === 'manual' ? 'manual local input' : `${formatMinutes(minutes)} from transition start`;
+  const resolvedLabel = resolved && earlier && later && earlier.epochMillis !== later.epochMillis ? `${policy} resolution` : `resolved ${policy}`;
 
   if (instantOutput) {
     instantOutput.textContent = instantNumber !== null
@@ -115,6 +128,7 @@ function render() {
           `transition: ${transitionLabel}`,
           `mode: ${modeLabel}`,
           `policy: ${policy}`,
+          `label: ${resolvedLabel}`,
           `epochMillis: ${instantNumber}`,
           `toISO(): ${resolved?.toISO() ?? ''}`,
           `formatted: ${format(resolved!, 'yyyy-MM-dd HH:mm:ss XXX zzzz')}`,
@@ -125,10 +139,8 @@ function render() {
   if (localOutput) {
     localOutput.textContent = [
       `local: ${local.toISO()}`,
-      `timeZone: America/New_York`,
-      isTransition ? 'transition type: offset change' : 'transition type: none',
-      `before offset: ${beforeOffset}`,
-      `after offset: ${afterOffset}`,
+      'timeZone: America/New_York',
+      earlier && later && earlier.epochMillis !== later.epochMillis ? 'transition type: offset change' : 'transition type: none',
       beforeInstant !== null ? `before instant: ${beforeInstant}` : 'before instant: —',
       afterInstant !== null ? `after instant: ${afterInstant}` : 'after instant: —',
       beforeLocal !== null ? `before local: ${beforeLocal.toISO()}` : 'before local: —',
@@ -141,12 +153,14 @@ function render() {
       noteOutput.textContent = `${policy.toUpperCase()} rejected this local time.\n${error}`;
       return;
     }
-    if (!isTransition) {
+    if (!earlier || !later || earlier.epochMillis === later.epochMillis) {
       noteOutput.textContent = `${policy} resolved normally.\nNo visible gap or overlap at this local minute.`;
       return;
     }
-    const gapMinutes = afterInstant && beforeInstant ? Math.round((afterInstant - beforeInstant) / 60000) : 0;
-    const isGap = gapMinutes > 0;
+
+    const gapMs = afterInstant - beforeInstant;
+    const isGap = gapMs > 0;
+    const gapMinutes = Math.round(gapMs / 60000);
     const summary = isGap
       ? `Gap: local times between ${beforeLocal?.toISO() ?? '—'} and ${afterLocal?.toISO() ?? '—'} never occur.`
       : `Overlap: local times between ${beforeLocal?.toISO() ?? '—'} and ${afterLocal?.toISO() ?? '—'} occur twice.`;

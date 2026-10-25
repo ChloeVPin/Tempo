@@ -43,13 +43,13 @@ Tempo is built for real throughput. The 6-way ecosystem benchmark compares parse
 
 | Case | Tempo | Temporal | Luxon | date-fns | dayjs | Moment |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Parse ISO date | 5,292,689 | 1,212,622 | 757,425 | 951,875 | 2,426,729 | 453,170 |
-| Parse ISO instant | 2,250,680 | 1,087,579 | 755,506 | 5,624,498 | 3,573,773 | 257,548 |
-| Parse local zoned | 212,424 | 597,332 | 110,613 | 5,639,947 | 3,523,080 | 255,391 |
-| Plus day | 2,878,733 | 309,604 | 340,742 | 921,878 | 1,015,770 | 446,158 |
-| Plus minute | 1,930,282 | 322,681 | 351,933 | 3,269,818 | 2,316,853 | 220,578 |
-| Format ISO | 3,276,325 | 813,625 | 717,195 | 2,534,973 | 592,295 | 421,279 |
-| Format with time tokens | 2,207,541 | 157,873 | 394,736 | 614,342 | 560,782 | 208,009 |
+| Parse ISO date | 5,288,330 | 1,237,404 | 778,395 | 964,763 | 2,612,605 | 517,169 |
+| Parse ISO instant | 2,199,765 | 1,031,709 | 735,862 | 5,554,435 | 3,491,133 | 252,741 |
+| Parse local zoned | 243,410 | 704,368 | 115,689 | 5,566,244 | 3,482,185 | 253,593 |
+| Plus day | 2,846,542 | 299,160 | 350,878 | 937,399 | 1,009,225 | 430,318 |
+| Plus minute | 1,904,049 | 315,923 | 351,855 | 3,345,155 | 2,310,243 | 224,000 |
+| Format ISO | 3,250,918 | 783,962 | 705,709 | 2,449,670 | 611,781 | 435,522 |
+| Format with time tokens | 2,216,754 | 160,448 | 388,155 | 600,968 | 547,379 | 212,280 |
 
 Run `npm run bench:artifacts` to regenerate `assets/benchmarks.svg` and [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
@@ -75,10 +75,12 @@ Run `npm run size` to verify the package-size gates on your machine.
 
 ## Playground
 
-[Try the interactive Web Playground](http://127.0.0.1:3100) to inspect live ISO parsing, format tokens, and DST disambiguation behavior.
+[Try the interactive Web Playground](http://127.0.0.1:3100) or run `npm run dev:demo` to inspect live ISO parsing, format tokens, and DST disambiguation behavior.
 
 ![Web playground](assets/demo-playground.png)
 ![DST simulator](assets/demo-dst-simulator.png)
+
+See [docs/MIGRATION.md](docs/MIGRATION.md) for the codemod guide.
 
 ## Terminal showcase
 
@@ -98,7 +100,7 @@ Tempo is a clean break. The core API is Temporal-shaped, immutable, and strict. 
 4. Replace `moment.tz` with `ZonedDateTime`.
 5. Delete the adapter.
 
-See [docs/MIGRATION.md](docs/MIGRATION.md) for the full migration guide and [docs/WHY-TEMPO.md](docs/WHY-TEMPO.md) for the breakage guide.
+See [docs/MIGRATION.md](docs/MIGRATION.md) for the codemod guide and full migration walkthrough, and [docs/WHY-TEMPO.md](docs/WHY-TEMPO.md) for the breakage guide.
 
 ## Develop and test
 
@@ -108,9 +110,10 @@ npm run build
 npm test
 npm run typecheck
 npm run lint
+npm run dev:demo
 ```
 
-Additional size, benchmark, and mutation commands are listed in [package.json](package.json). Compatibility behavior and migration guidance are documented in [docs/MIGRATION.md](docs/MIGRATION.md). For a visual walkthrough of native `Date`, `@formkit/tempo`, Moment, and core Tempo failure modes, see [docs/WHY-TEMPO.md](docs/WHY-TEMPO.md).
+The playground serves at `http://127.0.0.1:3100`; stop it when you’re done. Additional size, benchmark, and mutation commands are listed in [package.json](package.json). Compatibility behavior and migration guidance are documented in [docs/MIGRATION.md](docs/MIGRATION.md). For a visual walkthrough of native `Date`, `@formkit/tempo`, Moment, and core Tempo failure modes, see [docs/WHY-TEMPO.md](docs/WHY-TEMPO.md).
 
 ## License
 

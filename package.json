@@ -79,7 +79,8 @@
     "bench": "vitest bench --run",
     "test:mutation": "stryker run",
     "generate:bench:artifacts": "node scripts/generate-bench-artifacts.mjs",
-    "bench:artifacts": "npm run bench --silent && npm run generate:bench:artifacts"
+    "bench:artifacts": "npm run bench --silent && npm run generate:bench:artifacts",
+    "dev:demo": "npx vite demo --port 3100 --host 127.0.0.1"
   },
   "repository": {
     "type": "git",
