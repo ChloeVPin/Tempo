@@ -64,9 +64,11 @@ function resolveWithPolicy(local: LocalDateTime, policy: Disambiguation) {
     return { resolved: earlier, earlier, later };
   }
 
-  const earlierLocalShift = earlier.toLocalDateTime().minus(local).total('minute');
-  const laterLocalShift = later.toLocalDateTime().minus(local).total('minute');
-  const isLocalShiftForward = laterLocalShift > 0 && earlierLocalShift < 0;
+  const earlierLocal = earlier.toLocalDateTime();
+  const laterLocal = later.toLocalDateTime();
+  const earlierShift = earlierLocal.minus(local).total('minute');
+  const laterShift = laterLocal.minus(local).total('minute');
+  const isLocalShiftForward = laterShift > 0 && earlierShift < 0;
 
   if (policy === 'earlier') {
     return { resolved: earlier, earlier, later };
@@ -78,6 +80,47 @@ function resolveWithPolicy(local: LocalDateTime, policy: Disambiguation) {
 
   const compatible = isLocalShiftForward ? later : earlier;
   return { resolved: compatible, earlier, later };
+}
+
+function resolveTransitionBoundaries(local: LocalDateTime, policy: Disambiguation) {
+  const earlier = ZonedDateTime.fromLocal(local, 'America/New_York', { disambiguation: 'earlier' });
+  const later = ZonedDateTime.fromLocal(local, 'America/New_York', { disambiguation: 'later' });
+
+  if (!earlier || !later || earlier.epochMillis === later.epochMillis) {
+    return {
+      instantNumber: null,
+      beforeInstant: null,
+      afterInstant: null,
+      beforeLocal: null,
+      afterLocal: null,
+      error: null,
+    };
+  }
+
+  const earlierLocal = earlier.toLocalDateTime();
+  const laterLocal = later.toLocalDateTime();
+  const before = earlierLocal.epochMillis < laterLocal.epochMillis ? earlier : later;
+  const after = earlierLocal.epochMillis < laterLocal.epochMillis ? later : earlier;
+  const beforeLocal = before.toLocalDateTime();
+  const afterLocal = after.toLocalDateTime();
+
+  let error: string | null = null;
+  try {
+    if (policy === 'reject') {
+      ZonedDateTime.fromLocal(local, 'America/New_York', { disambiguation: 'reject' });
+    }
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+
+  return {
+    instantNumber: before.epochMillis,
+    beforeInstant: before.epochMillis,
+    afterInstant: after.epochMillis,
+    beforeLocal,
+    afterLocal,
+    error,
+  };
 }
 
 function render() {
@@ -108,12 +151,25 @@ function render() {
   let earlier: ZonedDateTime | null = null;
   let later: ZonedDateTime | null = null;
   let error: string | null = null;
+  let instantNumber: number | null = null;
+  let beforeInstant: number | null = null;
+  let afterInstant: number | null = null;
+  let beforeLocal: LocalDateTime | null = null;
+  let afterLocal: LocalDateTime | null = null;
 
   try {
     const resolution = resolveWithPolicy(local, policy);
     resolved = resolution.resolved;
     earlier = resolution.earlier;
     later = resolution.later;
+
+    const boundaries = resolveTransitionBoundaries(local, policy);
+    instantNumber = boundaries.instantNumber;
+    beforeInstant = boundaries.beforeInstant;
+    afterInstant = boundaries.afterInstant;
+    beforeLocal = boundaries.beforeLocal;
+    afterLocal = boundaries.afterLocal;
+    error = boundaries.error;
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }

@@ -16,6 +16,7 @@
     "CHANGELOG.md",
     "LICENSE",
     "docs/API.md",
+    "docs/CODEMOD.md",
     "docs/MIGRATION.md",
     "docs/RELEASE-1.0.0.md",
     "docs/TESTING.md"

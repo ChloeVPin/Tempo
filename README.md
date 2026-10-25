@@ -69,9 +69,9 @@ Run `npm run size` to verify the package-size gates on your machine.
 | Separate types | no | no | no | yes |
 | Immutable API | no | yes | no | yes |
 | Strict ISO default | no | no | no | yes |
-| Month-end safety | no | yes | no | yes |
+| Month-end safety | no | yes | yes | yes |
 | DST policy control | no | no | no | yes |
-| Zero runtime deps | n/a | yes | no | yes |
+| Zero runtime deps | n/a | yes | yes | yes |
 
 ## Playground
 
@@ -80,7 +80,7 @@ Run `npm run size` to verify the package-size gates on your machine.
 ![Web playground](assets/demo-playground.png)
 ![DST simulator](assets/demo-dst-simulator.png)
 
-See [docs/MIGRATION.md](docs/MIGRATION.md) for the codemod guide.
+See [docs/CODEMOD.md](docs/CODEMOD.md) for the codemod guide.
 
 ## Terminal showcase
 
@@ -100,7 +100,7 @@ Tempo is a clean break. The core API is Temporal-shaped, immutable, and strict. 
 4. Replace `moment.tz` with `ZonedDateTime`.
 5. Delete the adapter.
 
-See [docs/MIGRATION.md](docs/MIGRATION.md) for the codemod guide and full migration walkthrough, and [docs/WHY-TEMPO.md](docs/WHY-TEMPO.md) for the breakage guide.
+See [docs/CODEMOD.md](docs/CODEMOD.md) for the codemod guide and [docs/MIGRATION.md](docs/MIGRATION.md) for the full migration walkthrough, and [docs/WHY-TEMPO.md](docs/WHY-TEMPO.md) for the breakage guide.
 
 ## Develop and test
 
