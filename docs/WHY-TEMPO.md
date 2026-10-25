@@ -39,9 +39,9 @@ plus / minus / with      -> returns new values
 | Separate types      | no          | no             | no     | yes        |
 | Immutable API       | no          | yes            | no     | yes        |
 | Strict ISO default  | no          | no             | no     | yes        |
-| Month-end safety    | no          | yes            | no     | yes        |
+| Month-end safety    | no          | yes            | yes     | yes        |
 | DST policy control  | no          | no             | no     | yes        |
-| Zero runtime deps   | n/a         | yes            | no     | yes        |
+| Zero runtime deps   | n/a         | yes            | yes     | yes        |
 ```
 
 ## 1. Midnight shift

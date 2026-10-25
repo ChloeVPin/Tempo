@@ -74,9 +74,9 @@ function update() {
     const zdtFallback = tryInstantZoned(iso)!;
     offsetOutput!.textContent = [
       `timeZone: UTC`,
-      `offsetMs: ${zdtFallback.toZonedDateTime('UTC').offsetMs}`,
+      `offsetMs: ${zdtFallback.offsetMs}`,
       `formatted offset: ${format(zdtFallback, 'XXX')}`,
-      `formatted zone: ${format(zdtFallback.toZonedDateTime('UTC'), 'zzzz')}`,
+      `formatted zone: ${format(zdtFallback, 'zzzz')}`,
     ].join('\n');
   } else {
     offsetOutput!.textContent = '—';

@@ -20,7 +20,7 @@ const slider = document.getElementById('dst-slider') as HTMLInputElement | null;
 const sliderOutput = document.getElementById('dst-slider-output') as HTMLOutputElement | null;
 const transitionSelect = document.getElementById('dst-transition') as HTMLSelectElement | null;
 const localTimeInput = document.getElementById('dst-local-time') as HTMLInputElement | null;
-const policyRadios = document.querySelectorAll<HTMLInputElement>('input[name="disambiguation"]');
+const policyRadios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="disambiguation"]'));
 const instantOutput = document.getElementById('dst-instant-output') as HTMLPreElement | null;
 const localOutput = document.getElementById('dst-local-output') as HTMLPreElement | null;
 const noteOutput = document.getElementById('dst-note-output') as HTMLPreElement | null;
@@ -66,8 +66,8 @@ function resolveWithPolicy(local: LocalDateTime, policy: Disambiguation) {
 
   const earlierLocal = earlier.toLocalDateTime();
   const laterLocal = later.toLocalDateTime();
-  const earlierShift = earlierLocal.minus(local).total('minute');
-  const laterShift = laterLocal.minus(local).total('minute');
+  const earlierShift = earlierLocal.until(local, 'minute');
+  const laterShift = laterLocal.until(local, 'minute');
   const isLocalShiftForward = laterShift > 0 && earlierShift < 0;
 
   if (policy === 'earlier') {
@@ -99,8 +99,8 @@ function resolveTransitionBoundaries(local: LocalDateTime, policy: Disambiguatio
 
   const earlierLocal = earlier.toLocalDateTime();
   const laterLocal = later.toLocalDateTime();
-  const before = earlierLocal.epochMillis < laterLocal.epochMillis ? earlier : later;
-  const after = earlierLocal.epochMillis < laterLocal.epochMillis ? later : earlier;
+  const before = earlierLocal.toNaiveUtcMillis() < laterLocal.toNaiveUtcMillis() ? earlier : later;
+  const after = earlierLocal.toNaiveUtcMillis() < laterLocal.toNaiveUtcMillis() ? later : earlier;
   const beforeLocal = before.toLocalDateTime();
   const afterLocal = after.toLocalDateTime();
 
@@ -159,9 +159,9 @@ function render() {
 
   try {
     const resolution = resolveWithPolicy(local, policy);
-    resolved = resolution.resolved;
-    earlier = resolution.earlier;
-    later = resolution.later;
+    resolved = resolution.resolved ?? null;
+    earlier = resolution.earlier ?? null;
+    later = resolution.later ?? null;
 
     const boundaries = resolveTransitionBoundaries(local, policy);
     instantNumber = boundaries.instantNumber;
@@ -214,7 +214,7 @@ function render() {
       return;
     }
 
-    const gapMs = afterInstant - beforeInstant;
+    const gapMs = (afterInstant ?? 0) - (beforeInstant ?? 0);
     const isGap = gapMs > 0;
     const gapMinutes = Math.round(gapMs / 60000);
     const summary = isGap
